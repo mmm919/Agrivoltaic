@@ -1,0 +1,40 @@
+{
+  "default_location": "Bekaa Valley",
+  "locations": {
+    "Bekaa Valley": {
+      "solar": "High",
+      "wind": "Low",
+      "humidity": "Medium"
+    },
+    "Beirut Coast": {
+      "solar": "Medium",
+      "wind": "High",
+      "humidity": "High"
+    },
+    "Tripoli": {
+      "solar": "High",
+      "wind": "Medium",
+      "humidity": "High"
+    },
+    "South Lebanon": {
+      "solar": "High",
+      "wind": "Medium",
+      "humidity": "Medium"
+    },
+    "Baabda": {
+      "solar": "High",
+      "wind": "Medium",
+      "humidity": "Medium"
+    },
+    "Zahle": {
+      "solar": "High",
+      "wind": "Medium",
+      "humidity": "Medium"
+    }
+  },
+  "kpis": {
+    "pv": 23,
+    "comfort": 73,
+    "water": 53
+  }
+}
