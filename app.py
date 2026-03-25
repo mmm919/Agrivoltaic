@@ -295,14 +295,12 @@ def page_design():
 def page_compare():
     top_bar("Compare", "Compare scenarios and view the story", [])
     if "saved_scenarios" not in st.session_state: st.session_state["saved_scenarios"] = []
-
     base_open = simulate_scenario({"panel_height_m":0.8,"panel_spacing_m":1.2,"tilt_deg":0.0,"canopy_height_m":1.4,"lai":3.0,"soil_wetness":"Medium","single_axis_tracking":False})
     pv_only_dry = simulate_scenario({"panel_height_m":3.0,"panel_spacing_m":4.0,"tilt_deg":25.0,"canopy_height_m":1.4,"lai":0.8,"soil_wetness":"Dry","single_axis_tracking":True})
     if st.session_state["saved_scenarios"]:
         s=st.session_state["saved_scenarios"][-1]; agr_title=s["name"]; agr_res=s["result"]
     else:
         agr_title="Agrivoltaic"; agr_res=simulate_scenario({"panel_height_m":2.0,"panel_spacing_m":3.0,"tilt_deg":25.0,"canopy_height_m":1.4,"lai":3.0,"soil_wetness":"Medium","single_axis_tracking":False})
-
     scenarios = {agr_title: agr_res, "Open cropland": base_open, "PV only dry": pv_only_dry}
     names   = list(scenarios.keys())
     results = list(scenarios.values())
@@ -314,14 +312,11 @@ def page_compare():
         ("heat_index_reduction_c","Heat Index Red. (°C)",20.0),
     ]
     COLORS = ["#22c55e","#f2c94c","#ff6b6b"]
-
     def winner_html(idx):
         labels=["🥇 Best","🥈 2nd","🥉 3rd"]
         bgs=["rgba(34,197,94,0.18)","rgba(242,201,76,0.18)","rgba(255,107,107,0.18)"]
         borders=["rgba(34,197,94,0.6)","rgba(242,201,76,0.6)","rgba(255,107,107,0.6)"]
         return f'<span style="border:1px solid {borders[idx]};border-radius:999px;padding:2px 9px;font-size:11px;background:{bgs[idx]}">{labels[idx]}</span>'
-
-    # Section 1: scenario cards
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Scenario comparison</div>', unsafe_allow_html=True)
     cols = st.columns(3, gap="medium")
@@ -344,8 +339,6 @@ def page_compare():
                   </div></div>''', unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-    # Section 2: radar + bar
     st.markdown("")
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Visual comparison</div>', unsafe_allow_html=True)
@@ -355,7 +348,7 @@ def page_compare():
         metric_labels = [m[1] for m in METRICS]
         fig_radar = go.Figure()
         for ci, (name, res) in enumerate(scenarios.items()):
-            nv = [res[k]/mv for k,_,mv in METRICS] ; nv_c = nv+nv[:1] ; th_c = metric_labels+metric_labels[:1]
+            nv = [res[k]/mv for k,_,mv in METRICS]; nv_c = nv+nv[:1]; th_c = metric_labels+metric_labels[:1]
             fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill='toself',name=name,line=dict(color=COLORS[ci],width=2.5),opacity=0.3))
             fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill=None,showlegend=False,line=dict(color=COLORS[ci],width=2.5)))
         fig_radar.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="rgba(255,255,255,0.12)",tickfont=dict(color="rgba(255,255,255,0.45)",size=8)),angularaxis=dict(gridcolor="rgba(255,255,255,0.12)",tickfont=dict(color="rgba(255,255,255,0.8)",size=10))),paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.85)"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=30,r=30,t=20,b=20),height=330)
@@ -369,8 +362,6 @@ def page_compare():
         fig_bar.update_layout(barmode="group",paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.85)",size=10),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=10)),xaxis=dict(gridcolor="rgba(255,255,255,0.06)",tickfont=dict(size=9)),yaxis=dict(gridcolor="rgba(255,255,255,0.10)"),margin=dict(l=10,r=10,t=20,b=10),height=330)
         st.plotly_chart(fig_bar, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-    # Section 3: category winners
     st.markdown("")
     st.markdown('<div class="card-soft">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🏆 Category winners</div>', unsafe_allow_html=True)
@@ -380,8 +371,6 @@ def page_compare():
         with win_cols[i]:
             st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:10px 6px;background:rgba(255,255,255,0.02);"><div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px">{label}</div><div style="font-size:13px;font-weight:800;color:{COLORS[best_i]}">{names[best_i]}</div><div style="font-size:12px;margin-top:2px">{results[best_i][key]:.1f}</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-    # Section 4: story charts
     st.markdown("")
     if st.button("📈 View story charts"):
         st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -402,25 +391,193 @@ def page_compare():
         st.markdown("</div>", unsafe_allow_html=True)
 
 def page_report():
-    top_bar("Report", "Inspect CSV files", [])
+    top_bar("Report", "Sensor data & ML predictions analysis", [])
+
     sensor_files = sorted([p for p in SENSORS_DIR.rglob("*.csv") if p.is_file()]) if SENSORS_DIR.exists() else []
     pred_files   = sorted([p for p in PRED_DIR.rglob("*.csv")   if p.is_file()]) if PRED_DIR.exists()   else []
-    st.markdown('<div class="card-soft">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Sensors</div>', unsafe_allow_html=True)
-    if not sensor_files: st.info("No sensor CSV files found in data/sensors")
+
+    # ── SENSORS SECTION ──────────────────────────────────────────────────────
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📡 Sensor Data</div>', unsafe_allow_html=True)
+
+    if not sensor_files:
+        st.info("No sensor CSV files found in data/sensors")
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         sname = st.selectbox("Choose sensors CSV", [p.name for p in sensor_files])
         df = pd.read_csv(next(p for p in sensor_files if p.name == sname))
+
+        # parse time if available
+        time_col = None
+        for c in df.columns:
+            if "time" in c.lower() or "date" in c.lower():
+                try:
+                    df[c] = pd.to_datetime(df[c])
+                    time_col = c
+                except: pass
+
+        num_cols = df.select_dtypes(include=np.number).columns.tolist()
+
+        # summary stats
+        st.markdown('<div class="section-title" style="margin-top:12px">Summary statistics</div>', unsafe_allow_html=True)
+        stats = df[num_cols].agg(["mean","median","std","min","max"]).T.round(4)
+        stats.columns = ["Mean","Median","Std","Min","Max"]
+        st.dataframe(stats, use_container_width=True)
+
+        # KPI pills for each numeric column
+        if num_cols:
+            pill_cols = st.columns(len(num_cols))
+            for i, col in enumerate(num_cols):
+                with pill_cols[i]:
+                    st.metric(col, f"{df[col].mean():.3f}", f"σ {df[col].std():.3f}")
+
+        # line chart
+        if time_col and num_cols:
+            st.markdown('<div class="section-title" style="margin-top:14px">Sensor readings over time</div>', unsafe_allow_html=True)
+            selected_cols = st.multiselect("Select columns to plot", num_cols, default=num_cols[:2] if len(num_cols)>=2 else num_cols)
+            if selected_cols:
+                fig = go.Figure()
+                colors_list = ["#22c55e","#f2c94c","#ff6b6b","#60a5fa","#c084fc"]
+                for i, col in enumerate(selected_cols):
+                    fig.add_trace(go.Scatter(x=df[time_col], y=df[col], name=col,
+                                             line=dict(color=colors_list[i % len(colors_list)], width=2)))
+                fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                                  font=dict(color="rgba(255,255,255,0.85)"),
+                                  legend=dict(bgcolor="rgba(0,0,0,0)"),
+                                  xaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
+                                  yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
+                                  margin=dict(l=10,r=10,t=20,b=10), height=280)
+                st.plotly_chart(fig, use_container_width=True)
+
+        # correlation heatmap
+        if len(num_cols) >= 2:
+            st.markdown('<div class="section-title" style="margin-top:14px">Correlation heatmap</div>', unsafe_allow_html=True)
+            corr = df[num_cols].corr().round(2)
+            fig_corr = go.Figure(go.Heatmap(
+                z=corr.values, x=corr.columns, y=corr.index,
+                colorscale="RdYlGn", zmin=-1, zmax=1,
+                text=corr.values.round(2), texttemplate="%{text}",
+                showscale=True,
+            ))
+            fig_corr.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                                   font=dict(color="rgba(255,255,255,0.85)"),
+                                   margin=dict(l=10,r=10,t=10,b=10), height=260)
+            st.plotly_chart(fig_corr, use_container_width=True)
+
+        st.markdown('<div class="section-title" style="margin-top:14px">Raw data</div>', unsafe_allow_html=True)
         st.dataframe(df.head(50), use_container_width=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── PREDICTIONS SECTION ───────────────────────────────────────────────────
     st.markdown("")
-    st.markdown('<div class="card-soft">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Predictions</div>', unsafe_allow_html=True)
-    if not pred_files: st.info("No prediction CSV files found in data/predictions")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🤖 ML Predictions Analysis</div>', unsafe_allow_html=True)
+
+    if not pred_files:
+        st.info("No prediction CSV files found in data/predictions")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    pname = st.selectbox("Choose predictions CSV", [p.name for p in pred_files])
+    df2 = pd.read_csv(next(p for p in pred_files if p.name == pname))
+
+    # detect y_true / y_pred columns
+    true_col = next((c for c in df2.columns if "true" in c.lower()), None)
+    pred_col = next((c for c in df2.columns if "pred" in c.lower()), None)
+
+    if true_col and pred_col:
+        y_true = df2[true_col].values.astype(float)
+        y_pred = df2[pred_col].values.astype(float)
+
+        # compute metrics
+        mae  = np.mean(np.abs(y_true - y_pred))
+        rmse = np.sqrt(np.mean((y_true - y_pred)**2))
+        ss_res = np.sum((y_true - y_pred)**2)
+        ss_tot = np.sum((y_true - np.mean(y_true))**2)
+        r2   = 1 - ss_res/ss_tot if ss_tot != 0 else 0.0
+
+        # model verdict
+        if r2 >= 0.9:   verdict, v_color = "Excellent", "#22c55e"
+        elif r2 >= 0.7: verdict, v_color = "Good",      "#22c55e"
+        elif r2 >= 0.5: verdict, v_color = "Acceptable","#f2c94c"
+        else:           verdict, v_color = "Needs work", "#ff6b6b"
+
+        # metric KPI circles
+        st.markdown('<div class="section-title" style="margin-top:4px">Model performance metrics</div>', unsafe_allow_html=True)
+        r2_pct = max(0, min(100, r2*100))
+        mae_pct = max(0, 100 - min(100, mae*20))
+        rmse_pct = max(0, 100 - min(100, rmse*20))
+
+        st.markdown(
+            f'''<div class="kpi-row" style="margin-bottom:14px">
+              <div class="kpi {kpi_class(r2_pct)}"><div class="v">{r2:.3f}</div><div class="l">R² Score</div></div>
+              <div class="kpi {kpi_class(mae_pct)}"><div class="v">{mae:.3f}</div><div class="l">MAE</div></div>
+              <div class="kpi {kpi_class(rmse_pct)}"><div class="v">{rmse:.3f}</div><div class="l">RMSE</div></div>
+              <div style="margin-left:10px;border:1px solid {v_color};border-radius:12px;padding:10px 18px;background:rgba(255,255,255,0.02);">
+                <div style="font-size:12px;color:rgba(255,255,255,0.55)">Model verdict</div>
+                <div style="font-size:20px;font-weight:900;color:{v_color};margin-top:4px">{verdict}</div>
+              </div>
+            </div>''',
+            unsafe_allow_html=True)
+
+        cs = dict(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                  font=dict(color="rgba(255,255,255,0.8)"),
+                  margin=dict(l=10,r=10,t=30,b=10),height=260,
+                  xaxis=dict(gridcolor="rgba(255,255,255,0.07)"),
+                  yaxis=dict(gridcolor="rgba(255,255,255,0.07)"))
+
+        ch1, ch2 = st.columns(2, gap="medium")
+
+        # y_true vs y_pred line chart
+        with ch1:
+            st.markdown('<div class="muted" style="margin-bottom:4px">Actual vs Predicted</div>', unsafe_allow_html=True)
+            fig_line = go.Figure()
+            fig_line.add_trace(go.Scatter(y=y_true, name="Actual",    line=dict(color="#22c55e", width=2)))
+            fig_line.add_trace(go.Scatter(y=y_pred, name="Predicted", line=dict(color="#f2c94c", width=2, dash="dash")))
+            fig_line.update_layout(**cs)
+            st.plotly_chart(fig_line, use_container_width=True)
+
+        # scatter y_true vs y_pred
+        with ch2:
+            st.markdown('<div class="muted" style="margin-bottom:4px">Scatter: Actual vs Predicted</div>', unsafe_allow_html=True)
+            fig_scatter = go.Figure()
+            fig_scatter.add_trace(go.Scatter(x=y_true, y=y_pred, mode="markers",
+                                             marker=dict(color="#60a5fa", size=6, opacity=0.7), name="Points"))
+            # perfect prediction line
+            mn, mx = float(min(y_true.min(), y_pred.min())), float(max(y_true.max(), y_pred.max()))
+            fig_scatter.add_trace(go.Scatter(x=[mn,mx], y=[mn,mx], mode="lines",
+                                             line=dict(color="#ff6b6b", dash="dash", width=1.5), name="Perfect"))
+            fig_scatter.update_layout(xaxis_title="Actual", yaxis_title="Predicted", **cs)
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
+        ch3, ch4 = st.columns(2, gap="medium")
+
+        # residuals chart
+        with ch3:
+            st.markdown('<div class="muted" style="margin-bottom:4px">Residuals (Actual − Predicted)</div>', unsafe_allow_html=True)
+            residuals = y_true - y_pred
+            fig_res = go.Figure()
+            fig_res.add_trace(go.Scatter(y=residuals, mode="markers",
+                                         marker=dict(color="#c084fc", size=5, opacity=0.7), name="Residual"))
+            fig_res.add_hline(y=0, line=dict(color="#ff6b6b", dash="dash", width=1.5))
+            fig_res.update_layout(yaxis_title="Residual", **cs)
+            st.plotly_chart(fig_res, use_container_width=True)
+
+        # error histogram
+        with ch4:
+            st.markdown('<div class="muted" style="margin-bottom:4px">Error distribution</div>', unsafe_allow_html=True)
+            fig_hist = go.Figure()
+            fig_hist.add_trace(go.Histogram(x=residuals, nbinsx=20,
+                                             marker_color="#f2c94c", opacity=0.8, name="Error"))
+            fig_hist.update_layout(xaxis_title="Error", yaxis_title="Count", **cs)
+            st.plotly_chart(fig_hist, use_container_width=True)
+
     else:
-        pname = st.selectbox("Choose predictions CSV", [p.name for p in pred_files])
-        df2 = pd.read_csv(next(p for p in pred_files if p.name == pname))
-        st.dataframe(df2.head(50), use_container_width=True)
+        st.info("Could not detect y_true / y_pred columns automatically.")
+
+    st.markdown('<div class="section-title" style="margin-top:14px">Raw predictions data</div>', unsafe_allow_html=True)
+    st.dataframe(df2.head(50), use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 def page_settings():
