@@ -151,6 +151,16 @@ def story_curves(result):
             "hi":   pd.DataFrame({"hour": hours, "heat_index_proxy": heat_index_curve}),
             "pv":   pd.DataFrame({"hour": hours, "pv_benefit_proxy": pv_curve})}
 
+def detect_unit(col: str) -> str:
+    c = col.lower()
+    if any(k in c for k in ["temp", "temperature"]): return "°C"
+    if any(k in c for k in ["moisture", "humidity", "rh"]): return "%"
+    if any(k in c for k in ["pressure"]): return "hPa"
+    if any(k in c for k in ["wind", "speed"]): return "m/s"
+    if any(k in c for k in ["rain", "precip"]): return "mm"
+    if any(k in c for k in ["radiation", "solar", "irrad"]): return "W/m²"
+    return ""
+
 def page_home():
     top_bar("Farm Dashboard", "Location, KPIs, alerts, updates", [])
     try:
@@ -284,45 +294,78 @@ def page_design():
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("")
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">Save scenario for Compare</div>', unsafe_allow_html=True)
-        default_name = "Open cropland" if open_cropland else "Agrivoltaic design"
-        scenario_name = st.text_input("Scenario name", value=default_name)
-        if st.button("Save scenario"):
-            st.session_state["saved_scenarios"].append({"name": scenario_name.strip() or "Scenario", "params": params, "result": out})
-            st.success("Saved to Compare")
+        saved = st.session_state["saved_scenarios"]
+        st.markdown(f'<div class="section-title">Save scenario for Compare ({len(saved)}/3)</div>', unsafe_allow_html=True)
+        if len(saved) >= 3:
+            st.warning("3 scenarios already saved. Remove one from the Compare tab to free a slot.")
+        else:
+            default_name = "Open cropland" if open_cropland else "Agrivoltaic design"
+            scenario_name = st.text_input("Scenario name", value=default_name)
+            if st.button("Save scenario"):
+                name_clean = scenario_name.strip() or "Scenario"
+                existing_idx = next((i for i, s in enumerate(saved) if s["name"] == name_clean), None)
+                if existing_idx is not None:
+                    st.session_state["saved_scenarios"][existing_idx] = {"name": name_clean, "params": params, "result": out}
+                    st.success(f"Updated '{name_clean}'")
+                else:
+                    st.session_state["saved_scenarios"].append({"name": name_clean, "params": params, "result": out})
+                    st.success(f"Saved '{name_clean}' ({len(saved)+1}/3)")
         st.markdown("</div>", unsafe_allow_html=True)
 
 def page_compare():
-    top_bar("Compare", "Compare scenarios and view the story", [])
+    top_bar("Compare", "Compare up to 3 of your saved scenarios", [])
     if "saved_scenarios" not in st.session_state: st.session_state["saved_scenarios"] = []
-    base_open = simulate_scenario({"panel_height_m":0.8,"panel_spacing_m":1.2,"tilt_deg":0.0,"canopy_height_m":1.4,"lai":3.0,"soil_wetness":"Medium","single_axis_tracking":False})
-    pv_only_dry = simulate_scenario({"panel_height_m":3.0,"panel_spacing_m":4.0,"tilt_deg":25.0,"canopy_height_m":1.4,"lai":0.8,"soil_wetness":"Dry","single_axis_tracking":True})
-    if st.session_state["saved_scenarios"]:
-        s=st.session_state["saved_scenarios"][-1]; agr_title=s["name"]; agr_res=s["result"]
-    else:
-        agr_title="Agrivoltaic"; agr_res=simulate_scenario({"panel_height_m":2.0,"panel_spacing_m":3.0,"tilt_deg":25.0,"canopy_height_m":1.4,"lai":3.0,"soil_wetness":"Medium","single_axis_tracking":False})
-    scenarios = {agr_title: agr_res, "Open cropland": base_open, "PV only dry": pv_only_dry}
-    names   = list(scenarios.keys())
-    results = list(scenarios.values())
+    saved = st.session_state["saved_scenarios"]
+
+    COLORS = ["#22c55e", "#f2c94c", "#ff6b6b"]
     METRICS = [
-        ("pv_gain_percent","PV Gain (%)",20.0),
-        ("leaf_cooling_c","Leaf Cooling (°C)",25.0),
-        ("water_savings_percent","Water Savings (%)",50.0),
-        ("comfort_score","Comfort Score",100.0),
-        ("heat_index_reduction_c","Heat Index Red. (°C)",20.0),
+        ("pv_gain_percent",       "PV Gain (%)",          20.0),
+        ("leaf_cooling_c",        "Leaf Cooling (°C)",     25.0),
+        ("water_savings_percent", "Water Savings (%)",     50.0),
+        ("comfort_score",         "Comfort Score",        100.0),
+        ("heat_index_reduction_c","Heat Index Red. (°C)",  20.0),
     ]
-    COLORS = ["#22c55e","#f2c94c","#ff6b6b"]
-    def winner_html(idx):
-        labels=["🥇 Best","🥈 2nd","🥉 3rd"]
-        bgs=["rgba(34,197,94,0.18)","rgba(242,201,76,0.18)","rgba(255,107,107,0.18)"]
-        borders=["rgba(34,197,94,0.6)","rgba(242,201,76,0.6)","rgba(255,107,107,0.6)"]
-        return f'<span style="border:1px solid {borders[idx]};border-radius:999px;padding:2px 9px;font-size:11px;background:{bgs[idx]}">{labels[idx]}</span>'
+
+    st.markdown('<div class="card-soft">', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-title">Saved scenarios ({len(saved)}/3)</div>', unsafe_allow_html=True)
+    if not saved:
+        st.info("No scenarios saved yet. Go to the **Design** tab, run a simulation, and click **Save scenario**.")
+    else:
+        for i, s in enumerate(saved[:3]):
+            c1, c2, c3 = st.columns([0.48, 0.42, 0.10])
+            with c1:
+                st.markdown(f'<span style="font-weight:800;color:{COLORS[i]}">{s["name"]}</span>', unsafe_allow_html=True)
+            with c2:
+                st.caption(f'PV {s["result"]["pv_performance"]:.1f}% · Comfort {s["result"]["crop_comfort"]:.1f}% · Water {s["result"]["water_savings_kpi"]:.1f}%')
+            with c3:
+                if st.button("✕", key=f"rm_sc_{i}"):
+                    st.session_state["saved_scenarios"].pop(i); st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if len(saved) < 2:
+        st.markdown("")
+        st.warning("Save at least **2 scenarios** from the **Design** tab to enable comparison.")
+        return
+
+    st.markdown("")
+    scenarios_list = saved[:3]
+    n = len(scenarios_list)
+    colors = COLORS[:n]
+    names   = [s["name"]   for s in scenarios_list]
+    results = [s["result"] for s in scenarios_list]
+
+    def winner_html(rank):
+        labels  = ["🥇 Best", "🥈 2nd", "🥉 3rd"]
+        bgs     = ["rgba(34,197,94,0.18)", "rgba(242,201,76,0.18)", "rgba(255,107,107,0.18)"]
+        borders = ["rgba(34,197,94,0.6)",  "rgba(242,201,76,0.6)",  "rgba(255,107,107,0.6)"]
+        return f'<span style="border:1px solid {borders[rank]};border-radius:999px;padding:2px 9px;font-size:11px;background:{bgs[rank]}">{labels[rank]}</span>'
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Scenario comparison</div>', unsafe_allow_html=True)
-    cols = st.columns(3, gap="medium")
-    for ci, (name, res) in enumerate(scenarios.items()):
+    cols = st.columns(n, gap="medium")
+    for ci, (name, res) in enumerate(zip(names, results)):
         with cols[ci]:
-            bc = COLORS[ci]
+            bc = colors[ci]
             st.markdown(f'<div style="border:1.5px solid {bc};border-radius:14px;padding:14px 16px;background:rgba(255,255,255,0.02);">', unsafe_allow_html=True)
             st.markdown(f'<div style="font-weight:900;font-size:15px;margin-bottom:8px;color:{bc}">{name}</div>', unsafe_allow_html=True)
             for key, label, max_val in METRICS:
@@ -340,6 +383,7 @@ def page_compare():
             st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("")
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Visual comparison</div>', unsafe_allow_html=True)
     radar_col, bar_col = st.columns(2, gap="large")
@@ -347,37 +391,39 @@ def page_compare():
         st.markdown('<div class="muted" style="margin-bottom:6px">Radar chart (normalised 0–1)</div>', unsafe_allow_html=True)
         metric_labels = [m[1] for m in METRICS]
         fig_radar = go.Figure()
-        for ci, (name, res) in enumerate(scenarios.items()):
+        for ci, (name, res) in enumerate(zip(names, results)):
             nv = [res[k]/mv for k,_,mv in METRICS]; nv_c = nv+nv[:1]; th_c = metric_labels+metric_labels[:1]
-            fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill='toself',name=name,line=dict(color=COLORS[ci],width=2.5),opacity=0.3))
-            fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill=None,showlegend=False,line=dict(color=COLORS[ci],width=2.5)))
+            fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill='toself',name=name,line=dict(color=colors[ci],width=2.5),opacity=0.3))
+            fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill=None,showlegend=False,line=dict(color=colors[ci],width=2.5)))
         fig_radar.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="rgba(255,255,255,0.12)",tickfont=dict(color="rgba(255,255,255,0.45)",size=8)),angularaxis=dict(gridcolor="rgba(255,255,255,0.12)",tickfont=dict(color="rgba(255,255,255,0.8)",size=10))),paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.85)"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=30,r=30,t=20,b=20),height=330)
         st.plotly_chart(fig_radar, use_container_width=True)
     with bar_col:
         st.markdown('<div class="muted" style="margin-bottom:6px">Side-by-side metrics</div>', unsafe_allow_html=True)
         mk = [m[0] for m in METRICS]; mls = ["PV Gain","Leaf Cool.","Water Sav.","Comfort","Heat Red."]
         fig_bar = go.Figure()
-        for ci,(name,res) in enumerate(scenarios.items()):
-            fig_bar.add_trace(go.Bar(name=name,x=mls,y=[res[k] for k in mk],marker_color=COLORS[ci],opacity=0.85))
+        for ci, (name, res) in enumerate(zip(names, results)):
+            fig_bar.add_trace(go.Bar(name=name,x=mls,y=[res[k] for k in mk],marker_color=colors[ci],opacity=0.85))
         fig_bar.update_layout(barmode="group",paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.85)",size=10),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=10)),xaxis=dict(gridcolor="rgba(255,255,255,0.06)",tickfont=dict(size=9)),yaxis=dict(gridcolor="rgba(255,255,255,0.10)"),margin=dict(l=10,r=10,t=20,b=10),height=330)
         st.plotly_chart(fig_bar, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("")
+
     st.markdown('<div class="card-soft">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🏆 Category winners</div>', unsafe_allow_html=True)
     win_cols = st.columns(len(METRICS), gap="small")
-    for i,(key,label,_) in enumerate(METRICS):
-        vals=[ r[key] for r in results]; best_i=vals.index(max(vals))
+    for i, (key, label, _) in enumerate(METRICS):
+        vals = [r[key] for r in results]; best_i = vals.index(max(vals))
         with win_cols[i]:
-            st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:10px 6px;background:rgba(255,255,255,0.02);"><div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px">{label}</div><div style="font-size:13px;font-weight:800;color:{COLORS[best_i]}">{names[best_i]}</div><div style="font-size:12px;margin-top:2px">{results[best_i][key]:.1f}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:10px 6px;background:rgba(255,255,255,0.02);"><div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px">{label}</div><div style="font-size:13px;font-weight:800;color:{colors[best_i]}">{names[best_i]}</div><div style="font-size:12px;margin-top:2px">{results[best_i][key]:.1f}</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("")
+
     if st.button("📈 View story charts"):
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Story charts</div>', unsafe_allow_html=True)
-        st.caption("Synthetic curves that reflect your selected scenario outputs")
-        curves = story_curves(agr_res)
-        c1,c2,c3 = st.columns(3, gap="medium")
+        st.caption(f"Synthetic curves based on: {names[0]}")
+        curves = story_curves(results[0])
+        c1, c2, c3 = st.columns(3, gap="medium")
         cs = dict(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.8)"),margin=dict(l=10,r=10,t=30,b=10),height=220,xaxis=dict(gridcolor="rgba(255,255,255,0.07)"),yaxis=dict(gridcolor="rgba(255,255,255,0.07)"))
         with c1:
             f=px.line(curves["leaf"],x="hour",y="leaf_temp_c",labels={"hour":"Hour","leaf_temp_c":"Leaf Temp (°C)"},title="Leaf Temperature")
@@ -396,7 +442,6 @@ def page_report():
     sensor_files = sorted([p for p in SENSORS_DIR.rglob("*.csv") if p.is_file()]) if SENSORS_DIR.exists() else []
     pred_files   = sorted([p for p in PRED_DIR.rglob("*.csv")   if p.is_file()]) if PRED_DIR.exists()   else []
 
-    # ── SENSORS SECTION ──────────────────────────────────────────────────────
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📡 Sensor Data</div>', unsafe_allow_html=True)
 
@@ -407,7 +452,6 @@ def page_report():
         sname = st.selectbox("Choose sensors CSV", [p.name for p in sensor_files])
         df = pd.read_csv(next(p for p in sensor_files if p.name == sname))
 
-        # parse time if available
         time_col = None
         for c in df.columns:
             if "time" in c.lower() or "date" in c.lower():
@@ -418,20 +462,20 @@ def page_report():
 
         num_cols = df.select_dtypes(include=np.number).columns.tolist()
 
-        # summary stats
         st.markdown('<div class="section-title" style="margin-top:12px">Summary statistics</div>', unsafe_allow_html=True)
         stats = df[num_cols].agg(["mean","median","std","min","max"]).T.round(4)
         stats.columns = ["Mean","Median","Std","Min","Max"]
+        stats.insert(0, "Unit", [detect_unit(c) for c in stats.index])
         st.dataframe(stats, use_container_width=True)
 
-        # KPI pills for each numeric column
         if num_cols:
             pill_cols = st.columns(len(num_cols))
             for i, col in enumerate(num_cols):
                 with pill_cols[i]:
-                    st.metric(col, f"{df[col].mean():.3f}", f"σ {df[col].std():.3f}")
+                    unit = detect_unit(col)
+                    label = f"{col} ({unit})" if unit else col
+                    st.metric(label, f"{df[col].mean():.3f}", f"σ {df[col].std():.3f}")
 
-        # line chart
         if time_col and num_cols:
             st.markdown('<div class="section-title" style="margin-top:14px">Sensor readings over time</div>', unsafe_allow_html=True)
             selected_cols = st.multiselect("Select columns to plot", num_cols, default=num_cols[:2] if len(num_cols)>=2 else num_cols)
@@ -449,7 +493,6 @@ def page_report():
                                   margin=dict(l=10,r=10,t=20,b=10), height=280)
                 st.plotly_chart(fig, use_container_width=True)
 
-        # correlation heatmap
         if len(num_cols) >= 2:
             st.markdown('<div class="section-title" style="margin-top:14px">Correlation heatmap</div>', unsafe_allow_html=True)
             corr = df[num_cols].corr().round(2)
@@ -469,7 +512,6 @@ def page_report():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── PREDICTIONS SECTION ───────────────────────────────────────────────────
     st.markdown("")
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🤖 ML Predictions Analysis</div>', unsafe_allow_html=True)
@@ -482,7 +524,6 @@ def page_report():
     pname = st.selectbox("Choose predictions CSV", [p.name for p in pred_files])
     df2 = pd.read_csv(next(p for p in pred_files if p.name == pname))
 
-    # detect y_true / y_pred columns
     true_col = next((c for c in df2.columns if "true" in c.lower()), None)
     pred_col = next((c for c in df2.columns if "pred" in c.lower()), None)
 
@@ -490,20 +531,17 @@ def page_report():
         y_true = df2[true_col].values.astype(float)
         y_pred = df2[pred_col].values.astype(float)
 
-        # compute metrics
         mae  = np.mean(np.abs(y_true - y_pred))
         rmse = np.sqrt(np.mean((y_true - y_pred)**2))
         ss_res = np.sum((y_true - y_pred)**2)
         ss_tot = np.sum((y_true - np.mean(y_true))**2)
         r2   = 1 - ss_res/ss_tot if ss_tot != 0 else 0.0
 
-        # model verdict
         if r2 >= 0.9:   verdict, v_color = "Excellent", "#22c55e"
         elif r2 >= 0.7: verdict, v_color = "Good",      "#22c55e"
         elif r2 >= 0.5: verdict, v_color = "Acceptable","#f2c94c"
         else:           verdict, v_color = "Needs work", "#ff6b6b"
 
-        # metric KPI circles
         st.markdown('<div class="section-title" style="margin-top:4px">Model performance metrics</div>', unsafe_allow_html=True)
         r2_pct = max(0, min(100, r2*100))
         mae_pct = max(0, 100 - min(100, mae*20))
@@ -528,8 +566,6 @@ def page_report():
                   yaxis=dict(gridcolor="rgba(255,255,255,0.07)"))
 
         ch1, ch2 = st.columns(2, gap="medium")
-
-        # y_true vs y_pred line chart
         with ch1:
             st.markdown('<div class="muted" style="margin-bottom:4px">Actual vs Predicted</div>', unsafe_allow_html=True)
             fig_line = go.Figure()
@@ -537,14 +573,11 @@ def page_report():
             fig_line.add_trace(go.Scatter(y=y_pred, name="Predicted", line=dict(color="#f2c94c", width=2, dash="dash")))
             fig_line.update_layout(**cs)
             st.plotly_chart(fig_line, use_container_width=True)
-
-        # scatter y_true vs y_pred
         with ch2:
             st.markdown('<div class="muted" style="margin-bottom:4px">Scatter: Actual vs Predicted</div>', unsafe_allow_html=True)
             fig_scatter = go.Figure()
             fig_scatter.add_trace(go.Scatter(x=y_true, y=y_pred, mode="markers",
                                              marker=dict(color="#60a5fa", size=6, opacity=0.7), name="Points"))
-            # perfect prediction line
             mn, mx = float(min(y_true.min(), y_pred.min())), float(max(y_true.max(), y_pred.max()))
             fig_scatter.add_trace(go.Scatter(x=[mn,mx], y=[mn,mx], mode="lines",
                                              line=dict(color="#ff6b6b", dash="dash", width=1.5), name="Perfect"))
@@ -552,8 +585,6 @@ def page_report():
             st.plotly_chart(fig_scatter, use_container_width=True)
 
         ch3, ch4 = st.columns(2, gap="medium")
-
-        # residuals chart
         with ch3:
             st.markdown('<div class="muted" style="margin-bottom:4px">Residuals (Actual − Predicted)</div>', unsafe_allow_html=True)
             residuals = y_true - y_pred
@@ -563,8 +594,6 @@ def page_report():
             fig_res.add_hline(y=0, line=dict(color="#ff6b6b", dash="dash", width=1.5))
             fig_res.update_layout(yaxis_title="Residual", **cs)
             st.plotly_chart(fig_res, use_container_width=True)
-
-        # error histogram
         with ch4:
             st.markdown('<div class="muted" style="margin-bottom:4px">Error distribution</div>', unsafe_allow_html=True)
             fig_hist = go.Figure()
