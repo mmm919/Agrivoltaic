@@ -190,7 +190,7 @@ def page_home():
                     elif t=="Warning": st.warning(f"{m}\n\nAdded {ts}")
                     else: st.error(f"{m}\n\nAdded {ts}")
                 with c2:
-                    if st.button("Remove", key=f"home_rm_alert_{i}"): api_delete(f"/alerts/{i}"); st.rerun()
+                    if st.button("Remove", key=f"home_rm_alert_{i}"): api_delete(f"/alerts/{a.get('id', i)}"); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with right:
         st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -232,7 +232,7 @@ def page_home():
                 c1,c2=st.columns([0.82,0.18])
                 with c1: st.markdown(f"**{title}**"); st.caption(f"{body}\n\nAdded {ts}")
                 with c2:
-                    if st.button("Remove", key=f"home_rm_update_{i}"): api_delete(f"/updates/{i}"); st.rerun()
+                    if st.button("Remove", key=f"home_rm_update_{i}"): api_delete(f"/updates/{u.get('id', i)}"); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 def page_design():
