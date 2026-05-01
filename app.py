@@ -139,15 +139,50 @@ def show_backend_error(err):
 def page_overview():
     st.markdown('<div class="page-header"><div class="page-title">🌱 Agrivoltaic Farm Overview</div><div class="page-sub">Live AI forecast · synthetic demo data</div></div>', unsafe_allow_html=True)
 
-    d, err = fetch_forecast()
-    if err: show_backend_error(err); return
+    # Get alpha from session state (shared with AI Forecast page)
+    alpha_val = st.session_state.get("fc_alpha", 0.7)
 
-    crop = d.get("crop","lettuce").capitalize()
+    # Fetch live comparison (runs model instantly, same as AI Forecast page)
+    try:
+        comp = api_get(f"/treatment/compare?alpha={alpha_val}", timeout=15)
+    except requests.exceptions.HTTPError as e:
+        if e.response and e.response.status_code == 503:
+            show_backend_error("warming_up")
+        else:
+            st.error(f"Backend error: {e}")
+        return
+    except Exception as e:
+        show_backend_error(str(e)); return
+
+    # Also get DLI/stress from cached forecast (these don't change with alpha)
+    d, _ = fetch_forecast()
+    if d is None:
+        d = {}
+
+    # Build unified data dict from live comparison
+    rec_cfg  = comp.get("recommended_config", "—")
+    if rec_cfg == "Vertical":
+        fc = comp.get("vertical_forecast", {})
+    else:
+        fc = comp.get("fixed_forecast", {})
+
+    crop     = d.get("crop", "lettuce").capitalize()
     stressed = d.get("stress_alert", False)
     dli_pct  = d.get("dli_pct", 0)
     irr_pct  = d.get("irrigation_pct", 100)
-    rec_cfg  = d.get("recommended_config","—")
-    ts       = d.get("timestamp","")
+    ts       = d.get("timestamp", "")
+
+    # Override PV/PAR with live values
+    d["pv_peak_kw"]   = fc.get("pv_peak_kw", d.get("pv_peak_kw", 0))
+    d["par_mean"]     = fc.get("par_mean", d.get("par_mean", 0))
+    d["pv_forecast_kw"] = fc.get("pv_forecast_kw", d.get("pv_forecast_kw", []))
+    d["par_forecast"]   = fc.get("par_forecast", d.get("par_forecast", []))
+    d["fixed_par_mean"]  = comp.get("fixed_par_mean", 0)
+    d["vertical_par_mean"] = comp.get("vertical_par_mean", 0)
+    d["fixed_pv_kwh"]    = comp.get("fixed_pv_kwh", 0)
+    d["vertical_pv_kwh"] = comp.get("vertical_pv_kwh", 0)
+    d["recommendation_reason"] = comp.get("reason", "")
+    d["recommended_config"]    = rec_cfg
 
     k1,k2,k3,k4 = st.columns(4, gap="medium")
     with k1:
