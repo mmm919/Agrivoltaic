@@ -31,8 +31,10 @@ ALERTS_PATH   = STORAGE_DIR / "alerts.json"
 UPDATES_PATH  = STORAGE_DIR / "updates.json"
 
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+HISTORY_PATH = STORAGE_DIR / "history.json"
 
-MAX_ITEMS = 100
+MAX_ITEMS  = 100
+MAX_HISTORY = 48  # keep last 48 records (24 hours at 30-min intervals)
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "default_location": "Bekaa Valley",
@@ -171,6 +173,28 @@ def _run_inference():
         result["timestamp"] = datetime.now().isoformat()
         with _lock:
             _payload = result
+
+        # Save to history
+        try:
+            hist = load_json(HISTORY_PATH, {"records": []})
+            record = {
+                "timestamp":      result["timestamp"],
+                "pv_peak_kw":     result["pv_peak_kw"],
+                "pv_total_kwh":   result["pv_total_kwh"],
+                "par_mean":       result["par_mean"],
+                "dli_accumulated": result["dli_accumulated"],
+                "dli_pct":        result["dli_pct"],
+                "stress_alert":   result["stress_alert"],
+                "irrigation_pct": result["irrigation_pct"],
+                "recommended_config": result["recommended_config"],
+            }
+            records = hist.get("records", [])
+            records.append(record)
+            hist["records"] = records[-MAX_HISTORY:]
+            save_json(HISTORY_PATH, hist)
+        except Exception as he:
+            log.warning("History save failed: %s", he)
+
         log.info("[AI] PV=%.1fkW PAR=%.0f DLI=%.2f(%d%%) Stress=%s Irr=%d%% Config=%s",
                  result["pv_peak_kw"], result["par_mean"],
                  result["dli_accumulated"], result["dli_pct"],
@@ -421,6 +445,12 @@ def set_crop(name: str):
         raise HTTPException(400, f"Options: {list(_CROP_THRESHOLDS.keys())}")
     _dli.set_crop(name)
     return {"crop": name, "threshold": f"{_CROP_THRESHOLDS[name]} mol/m²/day"}
+
+@app.get("/history")
+def get_history():
+    """Last 48 forecast records (24 hours) for history charts."""
+    hist = load_json(HISTORY_PATH, {"records": []})
+    return hist
 
 @app.websocket("/live")
 async def ws_live(ws: WebSocket):
