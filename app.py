@@ -75,7 +75,6 @@ CHART_LAYOUT = dict(
     font=dict(color="#4b5563", family="DM Sans", size=11),
     margin=dict(l=8, r=8, t=8, b=8),
     xaxis=dict(gridcolor="#e5e7eb", linecolor="#e5e7eb", tickfont=dict(size=10)),
-    yaxis=dict(gridcolor="#e5e7eb", linecolor="#e5e7eb", tickfont=dict(size=10)),
     legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
 )
 
