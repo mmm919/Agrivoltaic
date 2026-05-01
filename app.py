@@ -174,7 +174,7 @@ def page_overview():
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#2d6a4f",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.07)", yaxis="y1"))
         fig.add_trace(go.Scatter(x=mins, y=par_vals, name="PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2,dash="dot"), yaxis="y2"))
-        fig.update_layout(**CHART_LAYOUT, yaxis=dict(title="kW",gridcolor="#e5e7eb"), yaxis2=dict(title="μmol/s/m²",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"), legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"), height=230, margin=dict(l=8,r=8,t=8,b=40))
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="#e5e7eb"),yaxis2=dict(title="03bcmol/s/m00b2",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -238,7 +238,7 @@ def page_forecast():
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#2d6a4f",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.08)", yaxis="y1", mode="lines+markers", marker=dict(size=5,color="#2d6a4f")))
     fig.add_trace(go.Scatter(x=mins, y=par_vals, name="Crop light PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2.5), yaxis="y2", mode="lines+markers", marker=dict(size=5,color="#b7791f")))
-    fig.update_layout(**CHART_LAYOUT, yaxis=dict(title="PV power (kW)",gridcolor="#e5e7eb"), yaxis2=dict(title="PAR (μmol/s/m²)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"), legend=dict(orientation="h",y=-0.2,bgcolor="rgba(0,0,0,0)"), height=280, margin=dict(l=8,r=8,t=8,b=50))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(title="PV power (kW)",gridcolor="#e5e7eb"),yaxis2=dict(title="PAR (μmol/s/m²)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.2,bgcolor="rgba(0,0,0,0)"),height=280,margin=dict(l=8,r=8,t=8,b=50))
     st.plotly_chart(fig, use_container_width=True)
     s1,s2,s3 = st.columns(3)
     s1.metric("PV peak", f'{d.get("pv_peak_kw",0):.1f} kW')
@@ -255,7 +255,7 @@ def page_forecast():
     fig_comp = go.Figure()
     fig_comp.add_trace(go.Bar(name="Fixed-tilt", x=["PAR (μmol/s/m²)","PV Energy (kWh×10)"], y=[fixed_par,fixed_pv*10], marker_color="#6b7280", opacity=0.85))
     fig_comp.add_trace(go.Bar(name="Vertical",   x=["PAR (μmol/s/m²)","PV Energy (kWh×10)"], y=[vert_par, vert_pv*10],  marker_color="#2d6a4f", opacity=0.85))
-    fig_comp.update_layout(**CHART_LAYOUT, barmode="group", height=220, margin=dict(l=8,r=8,t=8,b=8))
+    fig_comp.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(gridcolor="#e5e7eb"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),barmode="group",height=220,margin=dict(l=8,r=8,t=8,b=8))
     st.plotly_chart(fig_comp, use_container_width=True)
     c1,c2 = st.columns(2, gap="large")
     for col_el, cfg, par_v, pv_v in [(c1,"Fixed-tilt",fixed_par,fixed_pv),(c2,"Vertical",vert_par,vert_pv)]:
