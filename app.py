@@ -470,7 +470,6 @@ def page_history():
     CHART_DARK = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color="rgba(255,255,255,0.6)", family="DM Sans", size=11),
         xaxis=dict(gridcolor="rgba(255,255,255,0.08)", linecolor="rgba(255,255,255,0.08)", tickfont=dict(size=10)),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
         margin=dict(l=8,r=8,t=8,b=8), height=220)
 
@@ -483,7 +482,7 @@ def page_history():
         fig.add_trace(go.Scatter(x=df["time"], y=df["pv_peak_kw"], fill="tozeroy",
             fillcolor="rgba(34,197,94,0.1)", line=dict(color="#22c55e", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig.update_layout(**CHART_DARK)
+        fig.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with c2:
@@ -493,7 +492,7 @@ def page_history():
         fig2.add_trace(go.Scatter(x=df["time"], y=df["par_mean"], fill="tozeroy",
             fillcolor="rgba(245,158,11,0.1)", line=dict(color="#f59e0b", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig2.update_layout(**CHART_DARK)
+        fig2.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig2, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -508,7 +507,7 @@ def page_history():
         fig3.add_trace(go.Scatter(x=df["time"], y=df["dli_accumulated"], fill="tozeroy",
             fillcolor="rgba(96,165,250,0.1)", line=dict(color="#60a5fa", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig3.update_layout(**CHART_DARK)
+        fig3.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig3, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with c4:
