@@ -219,8 +219,8 @@ def page_overview():
         mins = [f"+{(i+1)*5}m" for i in range(len(pv_vals))]
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#22c55e",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.07)", yaxis="y1"))
-        fig.add_trace(go.Scatter(x=mins, y=par_vals, name="PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2,dash="dot"), yaxis="y2"))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="03bcmol/s/m00b2",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
+        fig.add_trace(go.Scatter(x=mins, y=par_vals, name="PAR (umol/s/m2)", line=dict(color="#f59e0b",width=2.5), yaxis="y2", mode="lines+markers", marker=dict(size=5,color="#f59e0b")))
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="PAR (umol/s/m2)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
