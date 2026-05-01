@@ -482,7 +482,7 @@ def page_history():
         fig.add_trace(go.Scatter(x=df["time"], y=df["pv_peak_kw"], fill="tozeroy",
             fillcolor="rgba(34,197,94,0.1)", line=dict(color="#22c55e", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=8,r=8,t=8,b=8),height=220,yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with c2:
@@ -492,7 +492,7 @@ def page_history():
         fig2.add_trace(go.Scatter(x=df["time"], y=df["par_mean"], fill="tozeroy",
             fillcolor="rgba(245,158,11,0.1)", line=dict(color="#f59e0b", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig2.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
+        fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=8,r=8,t=8,b=8),height=220,yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig2, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -507,7 +507,7 @@ def page_history():
         fig3.add_trace(go.Scatter(x=df["time"], y=df["dli_accumulated"], fill="tozeroy",
             fillcolor="rgba(96,165,250,0.1)", line=dict(color="#60a5fa", width=2),
             mode="lines+markers", marker=dict(size=4)))
-        fig3.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
+        fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=8,r=8,t=8,b=8),height=220,yaxis=dict(gridcolor="rgba(255,255,255,0.08)"))
         st.plotly_chart(fig3, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with c4:
@@ -518,7 +518,7 @@ def page_history():
             fillcolor="rgba(167,139,250,0.1)", line=dict(color="#a78bfa", width=2),
             mode="lines+markers", marker=dict(size=4)))
         fig4.add_hline(y=100, line=dict(color="rgba(255,255,255,0.2)", dash="dot", width=1))
-        fig4.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)", range=[50,105]))
+        fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=8,r=8,t=8,b=8),height=220,yaxis=dict(gridcolor="rgba(255,255,255,0.08)",range=[50,105]))
         st.plotly_chart(fig4, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -542,8 +542,7 @@ def page_history():
             x=df[mask]["time"], y=df[mask]["pv_peak_kw"],
             name=cfg, mode="markers",
             marker=dict(size=10, color=colors_map.get(cfg, "#ffffff"), symbol="circle")))
-    fig5.update_layout(**CHART_DARK, height=140,
-        yaxis=dict(title="PV kW", gridcolor="rgba(255,255,255,0.08)"))
+    fig5.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=8,r=8,t=8,b=8),height=140,yaxis=dict(title="PV kW",gridcolor="rgba(255,255,255,0.08)"))
     st.plotly_chart(fig5, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
