@@ -188,7 +188,7 @@ def page_overview():
 def page_forecast():
     header("🤖 AI Forecast", "BiLSTM model — PV R²=0.9085 · PAR R²=0.8926")
     c1,c2,c3 = st.columns([1,1,1], gap="large")
-    with c1: crop_sel = st.selectbox("🌿 Crop", ["lettuce","spinach","wheat","tomato","cucumber","pepper"], key="fc_crop")
+    with c1: crop_sel = st.selectbox("🌿 Crop", ["lettuce","tomato","wheat"], key="fc_crop")
     with c2: alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, 0.7, 0.05, key="fc_alpha", help="0=max energy · 1=max crop light")
     with c3:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -311,7 +311,7 @@ def page_dli():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="lbl" style="margin-bottom:12px">CROP DLI TARGETS REFERENCE</div>', unsafe_allow_html=True)
-    crops_ref = {"Lettuce":14,"Spinach":16,"Cucumber":20,"Pepper":18,"Wheat":22,"Tomato":25}
+    crops_ref = {"Lettuce":14,"Tomato":25,"Wheat":22}
     cols = st.columns(len(crops_ref), gap="small")
     for i,(c,t) in enumerate(crops_ref.items()):
         is_cur = c.lower() == d.get("crop","lettuce").lower()
