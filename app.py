@@ -125,12 +125,15 @@ def run_status_bar(d):
     if not ts:
         return
     try:
-        from datetime import datetime, timezone
-        last = datetime.fromisoformat(ts)
-        now  = datetime.now()
-        mins_ago = int((now - last).total_seconds() / 60)
+        from datetime import datetime, timedelta
+        # Convert to Beirut time (UTC+3)
+        last_utc = datetime.fromisoformat(ts)
+        beirut_offset = timedelta(hours=3)
+        last_beirut = last_utc + beirut_offset
+        now_beirut  = datetime.utcnow() + beirut_offset
+        mins_ago = int((now_beirut - last_beirut).total_seconds() / 60)
         next_in  = max(0, 30 - mins_ago)
-        if mins_ago == 0:
+        if mins_ago <= 0:
             last_str = "just now"
         elif mins_ago == 1:
             last_str = "1 min ago"
@@ -138,9 +141,10 @@ def run_status_bar(d):
             last_str = f"{mins_ago} min ago"
         next_str = "due now" if next_in == 0 else f"in {next_in} min"
         crop = d.get("crop","lettuce").capitalize()
+        time_display = last_beirut.strftime("%H:%M")
         st.markdown(
             f'''<div style="display:flex;gap:24px;align-items:center;padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;margin-bottom:16px;flex-wrap:wrap">
-            <div style="font-size:11px;color:rgba(255,255,255,0.4)">🕐 Last run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{last_str}</span> &nbsp;({ts[11:16] if len(ts)>15 else ts})</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4)">🕐 Last run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{last_str}</span> &nbsp;({time_display} Beirut)</div>
             <div style="font-size:11px;color:rgba(255,255,255,0.4)">⏭ Next run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{next_str}</span></div>
             <div style="font-size:11px;color:rgba(255,255,255,0.4)">🌿 Active crop: <span style="color:#22c55e;font-weight:600">{crop}</span></div>
             </div>''',
