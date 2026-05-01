@@ -358,6 +358,7 @@ def root():
     }
 
 @app.get("/health")
+@app.head("/health")
 def health():
     return {"ok": True, "timestamp": now_iso(), "ai_ready": _ai_ready}
 
