@@ -15,16 +15,16 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg:       #f5f4f0;
-  --surface:  #ffffff;
-  --surface2: #f0efe9;
-  --border:   #e2e0d8;
-  --text:     #1a1916;
-  --muted:    #6b6860;
-  --muted2:   #9e9b94;
-  --accent:   #2d6a4f;
+  --bg:       #0f1117;
+  --surface:  #1a1d27;
+  --surface2: #21242f;
+  --border:   rgba(255,255,255,0.08);
+  --text:     rgba(255,255,255,0.92);
+  --muted:    rgba(255,255,255,0.55);
+  --muted2:   rgba(255,255,255,0.35);
+  --accent:   #22c55e;
   --radius:   14px;
-  --shadow:   0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  --shadow:   0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3);
 }
 
 * { font-family: 'DM Sans', sans-serif; }
@@ -33,9 +33,9 @@ header[data-testid="stHeader"], div[data-testid="stToolbar"], #MainMenu, footer 
 .stApp { background: var(--bg); }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow); }
-.card-tinted { background: #f0f7f4; border: 1px solid #c3ddd3; border-radius: var(--radius); padding: 20px 22px; }
-.card-warn { background: #fef9f0; border: 1px solid #f5d89a; border-radius: var(--radius); padding: 20px 22px; }
-.card-danger { background: #fdf2f2; border: 1px solid #f5c0bc; border-radius: var(--radius); padding: 20px 22px; }
+.card-tinted { background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.25); border-radius: var(--radius); padding: 20px 22px; }
+.card-warn { background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.25); border-radius: var(--radius); padding: 20px 22px; }
+.card-danger { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.25); border-radius: var(--radius); padding: 20px 22px; }
 
 .page-header { padding: 22px 0 18px 0; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
@@ -48,12 +48,12 @@ header[data-testid="stHeader"], div[data-testid="stToolbar"], #MainMenu, footer 
 .caption { font-size: 12px; color: var(--muted2); margin-top: 3px; }
 
 .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
-.badge-green { background: #dcfce7; color: #15803d; }
-.badge-amber { background: #fef3c7; color: #92400e; }
-.badge-red   { background: #fee2e2; color: #991b1b; }
-.badge-rec   { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.badge-green { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.badge-amber { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.badge-red   { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.badge-rec   { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.4); }
 
-.progress-track { background: var(--border); border-radius: 999px; height: 6px; margin-top: 8px; overflow: hidden; }
+.progress-track { background: rgba(255,255,255,0.08); border-radius: 999px; height: 6px; margin-top: 8px; overflow: hidden; }
 .progress-fill  { height: 6px; border-radius: 999px; }
 
 .stat-box { flex: 1; min-width: 110px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
@@ -72,9 +72,9 @@ div[data-testid="stMetricLabel"] { color: var(--muted) !important; }
 
 CHART_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#4b5563", family="DM Sans", size=11),
+    font=dict(color="rgba(255,255,255,0.6)", family="DM Sans", size=11),
     margin=dict(l=8, r=8, t=8, b=8),
-    xaxis=dict(gridcolor="#e5e7eb", linecolor="#e5e7eb", tickfont=dict(size=10)),
+    xaxis=dict(gridcolor="rgba(255,255,255,0.08)", linecolor="rgba(255,255,255,0.08)", tickfont=dict(size=10)),
     legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
 )
 
@@ -114,7 +114,7 @@ def simulate_scenario(params):
             "heat_index_reduction_c": hi, "comfort_score": cs}
 
 def pct_color(v):
-    if v >= 70: return "#15803d"
+    if v >= 70: return "#22c55e"
     if v >= 40: return "#92400e"
     return "#991b1b"
 
@@ -157,10 +157,10 @@ def page_overview():
     with k3:
         badge = "badge-green" if not stressed else "badge-red"
         status = "On track" if not stressed else "Stress detected"
-        gc = "#15803d" if not stressed else "#c0392b"
+        gc = "#22c55e" if not stressed else "#ef4444"
         st.markdown(f'<div class="card"><div class="label">DLI Progress — {crop}</div><div class="value-lg">{dli_pct:.0f}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="progress-track"><div class="progress-fill" style="width:{min(dli_pct,100):.0f}%;background:{gc}"></div></div><div style="margin-top:6px"><span class="badge {badge}">{status}</span></div></div>', unsafe_allow_html=True)
     with k4:
-        ic = "#15803d" if irr_pct >= 90 else ("#d97706" if irr_pct >= 70 else "#c0392b")
+        ic = "#22c55e" if irr_pct >= 90 else ("#f59e0b" if irr_pct >= 70 else "#ef4444")
         st.markdown(f'<div class="card"><div class="label">Irrigation Schedule</div><div class="value-lg" style="color:{ic}">{irr_pct}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="progress-track"><div class="progress-fill" style="width:{irr_pct}%;background:{ic}"></div></div><div class="caption">of normal schedule</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -172,9 +172,9 @@ def page_overview():
         pv_vals = d.get("pv_forecast_kw",[]); par_vals = d.get("par_forecast",[])
         mins = [f"+{(i+1)*5}m" for i in range(len(pv_vals))]
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#2d6a4f",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.07)", yaxis="y1"))
+        fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#22c55e",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.07)", yaxis="y1"))
         fig.add_trace(go.Scatter(x=mins, y=par_vals, name="PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2,dash="dot"), yaxis="y2"))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="#e5e7eb"),yaxis2=dict(title="03bcmol/s/m00b2",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="03bcmol/s/m00b2",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -186,8 +186,8 @@ def page_overview():
         st.markdown('<div class="label" style="margin-bottom:12px">PANEL CONFIGURATION</div>', unsafe_allow_html=True)
         for cfg, par_v, pv_v in [("Fixed-tilt",fixed_par,fixed_pv),("Vertical",vert_par,vert_pv)]:
             is_rec = cfg == rec_cfg
-            border = "2px solid #2d6a4f" if is_rec else "1px solid var(--border)"
-            bg = "#f0f7f4" if is_rec else "var(--surface2)"
+            border = "2px solid rgba(34,197,94,0.6)" if is_rec else "1px solid rgba(255,255,255,0.08)"
+            bg = "rgba(34,197,94,0.07)" if is_rec else "rgba(255,255,255,0.04)"
             rec_b = '<span class="badge badge-rec" style="margin-left:6px;font-size:10px">Recommended</span>' if is_rec else ""
             st.markdown(f'<div style="border:{border};background:{bg};border-radius:10px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:600;font-size:13px;margin-bottom:6px">{cfg}{rec_b}</div><div style="display:flex;gap:20px;"><div><div class="label">PAR</div><div class="value-sm">{par_v:.0f}</div></div><div><div class="label">Energy</div><div class="value-sm">{pv_v:.1f} kWh</div></div></div></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="caption" style="margin-top:4px">{reason}</div>', unsafe_allow_html=True)
@@ -201,7 +201,7 @@ def page_overview():
         msg = d.get("alert_message","")
         st.markdown(f'<div class="{cls}"><div class="label">{icon} CROP STRESS ALERT</div><div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:6px">{msg}</div><div style="display:flex;gap:24px;margin-top:12px"><div><div class="label">Deficit</div><div class="value-md">{d.get("dli_deficit",0):.1f} <span style="font-size:12px">mol/m²</span></div></div><div><div class="label">DLI progress</div><div class="value-md">{dli_pct:.0f}<span style="font-size:12px">%</span></div></div></div></div>', unsafe_allow_html=True)
     with dc:
-        gc2 = "#2d6a4f" if not stressed else "#c0392b"
+        gc2 = "#22c55e" if not stressed else "#ef4444"
         st.markdown(f'<div class="card"><div class="label">DAILY LIGHT INTEGRAL</div><div style="display:flex;gap:24px;margin-top:10px;flex-wrap:wrap"><div><div class="label">Collected</div><div class="value-md">{d.get("dli_accumulated",0):.1f} <span style="font-size:12px">mol/m²</span></div></div><div><div class="label">Projected EOD</div><div class="value-md">{d.get("dli_projected_eod",0):.1f} <span style="font-size:12px">mol/m²</span></div></div><div><div class="label">Target ({crop})</div><div class="value-md">{d.get("dli_threshold",14):.0f} <span style="font-size:12px">mol/m²/day</span></div></div></div><div class="progress-track" style="margin-top:14px;height:8px"><div class="progress-fill" style="width:{min(dli_pct,100):.0f}%;height:8px;background:{gc2}"></div></div></div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="caption" style="margin-top:8px;text-align:right">Last updated: {ts[11:16] if len(ts)>15 else ts} · Refreshes every 30 min</div>', unsafe_allow_html=True)
@@ -236,9 +236,9 @@ def page_forecast():
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="label" style="margin-bottom:12px">BILSTM FORECAST — PV POWER & CROP LIGHT (NEXT 60 MIN)</div>', unsafe_allow_html=True)
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#2d6a4f",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.08)", yaxis="y1", mode="lines+markers", marker=dict(size=5,color="#2d6a4f")))
+    fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#22c55e",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.08)", yaxis="y1", mode="lines+markers", marker=dict(size=5,color="#22c55e")))
     fig.add_trace(go.Scatter(x=mins, y=par_vals, name="Crop light PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2.5), yaxis="y2", mode="lines+markers", marker=dict(size=5,color="#b7791f")))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(title="PV power (kW)",gridcolor="#e5e7eb"),yaxis2=dict(title="PAR (μmol/s/m²)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.2,bgcolor="rgba(0,0,0,0)"),height=280,margin=dict(l=8,r=8,t=8,b=50))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="PV power (kW)",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="PAR (μmol/s/m²)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.2,bgcolor="rgba(0,0,0,0)"),height=280,margin=dict(l=8,r=8,t=8,b=50))
     st.plotly_chart(fig, use_container_width=True)
     s1,s2,s3 = st.columns(3)
     s1.metric("PV peak", f'{d.get("pv_peak_kw",0):.1f} kW')
@@ -254,15 +254,15 @@ def page_forecast():
     st.markdown('<div class="label" style="margin-bottom:14px">FIXED-TILT VS VERTICAL — TREATMENT COMPARISON</div>', unsafe_allow_html=True)
     fig_comp = go.Figure()
     fig_comp.add_trace(go.Bar(name="Fixed-tilt", x=["PAR (μmol/s/m²)","PV Energy (kWh×10)"], y=[fixed_par,fixed_pv*10], marker_color="#6b7280", opacity=0.85))
-    fig_comp.add_trace(go.Bar(name="Vertical",   x=["PAR (μmol/s/m²)","PV Energy (kWh×10)"], y=[vert_par, vert_pv*10],  marker_color="#2d6a4f", opacity=0.85))
-    fig_comp.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans",size=11),xaxis=dict(gridcolor="#e5e7eb",linecolor="#e5e7eb",tickfont=dict(size=10)),yaxis=dict(gridcolor="#e5e7eb"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),barmode="group",height=220,margin=dict(l=8,r=8,t=8,b=8))
+    fig_comp.add_trace(go.Bar(name="Vertical",   x=["PAR (μmol/s/m²)","PV Energy (kWh×10)"], y=[vert_par, vert_pv*10],  marker_color="#22c55e", opacity=0.85))
+    fig_comp.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),barmode="group",height=220,margin=dict(l=8,r=8,t=8,b=8))
     st.plotly_chart(fig_comp, use_container_width=True)
     c1,c2 = st.columns(2, gap="large")
     for col_el, cfg, par_v, pv_v in [(c1,"Fixed-tilt",fixed_par,fixed_pv),(c2,"Vertical",vert_par,vert_pv)]:
         is_rec = cfg == rec_cfg
         with col_el:
-            border = "2px solid #2d6a4f" if is_rec else "1px solid var(--border)"
-            bg = "#f0f7f4" if is_rec else "var(--surface2)"
+            border = "2px solid rgba(34,197,94,0.6)" if is_rec else "1px solid rgba(255,255,255,0.08)"
+            bg = "rgba(34,197,94,0.07)" if is_rec else "rgba(255,255,255,0.04)"
             rec_b = '<span class="badge badge-rec">Recommended</span>' if is_rec else ""
             st.markdown(f'<div style="border:{border};background:{bg};border-radius:10px;padding:14px 16px"><div style="font-weight:600;margin-bottom:8px">{cfg} {rec_b}</div><div style="display:flex;gap:20px"><div><div class="label">PAR mean</div><div class="value-sm">{par_v:.0f}</div></div><div><div class="label">Energy</div><div class="value-sm">{pv_v:.1f} kWh</div></div></div></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="caption" style="margin-top:8px">{reason} · α={alpha_val}</div>', unsafe_allow_html=True)
@@ -346,7 +346,7 @@ def page_design():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown(f'<div class="label" style="margin-bottom:14px">SAVED SCENARIOS ({len(saved)}/3)</div>', unsafe_allow_html=True)
-    COLORS  = ["#2d6a4f","#b7791f","#1d4ed8"]
+    COLORS  = ["#22c55e","#b7791f","#1d4ed8"]
     METRICS = [("pv_gain_percent","PV Gain (%)",20.0),("leaf_cooling_c","Leaf Cooling (°C)",25.0),("water_savings_percent","Water Savings (%)",50.0),("comfort_score","Comfort Score",100.0),("heat_index_reduction_c","Heat Index Red.",20.0)]
     for i,s in enumerate(saved):
         c1,c2,c3 = st.columns([0.45,0.45,0.10])
@@ -364,13 +364,13 @@ def page_design():
             nv=[res[k]/mv for k,_,mv in METRICS]; nv_c=nv+nv[:1]; th_c=metric_labels+metric_labels[:1]
             fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill='toself',name=name,line=dict(color=colors[ci],width=2),opacity=0.25))
             fig_radar.add_trace(go.Scatterpolar(r=nv_c,theta=th_c,fill=None,showlegend=False,line=dict(color=colors[ci],width=2)))
-        fig_radar.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="#e5e7eb",tickfont=dict(color="#9ca3af",size=8)),angularaxis=dict(gridcolor="#e5e7eb",tickfont=dict(color="#4b5563",size=10))),paper_bgcolor="rgba(0,0,0,0)",font=dict(color="#4b5563",family="DM Sans"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=30,r=30,t=20,b=20),height=300)
+        fig_radar.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.3)",size=8)),angularaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.6)",size=10))),paper_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans"),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),margin=dict(l=30,r=30,t=20,b=20),height=300)
         st.plotly_chart(fig_radar, use_container_width=True)
         win_cols = st.columns(len(METRICS), gap="small")
         for i,(key,label,_) in enumerate(METRICS):
             vals=[r[key] for r in results]; best_i=vals.index(max(vals))
             with win_cols[i]:
-                st.markdown(f'<div style="text-align:center;border:1px solid var(--border);border-radius:10px;padding:10px 6px;background:var(--surface2)"><div class="label">{label}</div><div style="font-weight:700;color:{colors[best_i]};font-size:13px;margin-top:4px">{names[best_i]}</div><div class="caption">{results[best_i][key]:.1f}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 6px;background:rgba(255,255,255,0.04)"><div class="label">{label}</div><div style="font-weight:700;color:{colors[best_i]};font-size:13px;margin-top:4px">{names[best_i]}</div><div class="caption">{results[best_i][key]:.1f}</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
