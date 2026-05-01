@@ -139,8 +139,12 @@ def show_backend_error(err):
 def page_overview():
     st.markdown('<div class="page-header"><div class="page-title">🌱 Agrivoltaic Farm Overview</div><div class="page-sub">Live AI forecast · synthetic demo data</div></div>', unsafe_allow_html=True)
 
-    # Get alpha from session state (shared with AI Forecast page)
-    alpha_val = st.session_state.get("fc_alpha", 0.7)
+    # Get alpha — prefer backend value so it stays in sync with AI Forecast page
+    try:
+        ai_status = api_get("/ai/status", timeout=5)
+        alpha_val = ai_status.get("alpha", st.session_state.get("fc_alpha", 0.7))
+    except:
+        alpha_val = st.session_state.get("fc_alpha", 0.7)
 
     # Fetch live comparison (runs model instantly, same as AI Forecast page)
     try:
@@ -159,6 +163,13 @@ def page_overview():
     if d is None:
         d = {}
 
+    # Read current crop from backend so it stays in sync with AI Forecast page
+    try:
+        ai_status = api_get("/ai/status", timeout=5)
+        current_crop = ai_status.get("crop", "lettuce")
+    except:
+        current_crop = d.get("crop", "lettuce")
+
     # Build unified data dict from live comparison
     rec_cfg  = comp.get("recommended_config", "—")
     if rec_cfg == "Vertical":
@@ -166,7 +177,7 @@ def page_overview():
     else:
         fc = comp.get("fixed_forecast", {})
 
-    crop     = d.get("crop", "lettuce").capitalize()
+    crop     = current_crop.capitalize()
     stressed = d.get("stress_alert", False)
     dli_pct  = d.get("dli_pct", 0)
     irr_pct  = d.get("irrigation_pct", 100)
