@@ -31,7 +31,8 @@ ALERTS_PATH   = STORAGE_DIR / "alerts.json"
 UPDATES_PATH  = STORAGE_DIR / "updates.json"
 
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-HISTORY_PATH = STORAGE_DIR / "history.json"
+HISTORY_PATH  = STORAGE_DIR / "history.json"
+DLI_STATE_PATH = STORAGE_DIR / "dli_state.json"
 
 MAX_ITEMS  = 100
 MAX_HISTORY = 48  # keep last 48 records (24 hours at 30-min intervals)
@@ -127,29 +128,99 @@ def _load_ai_model():
         _compare_treatments = compare_treatments
         _CROP_THRESHOLDS    = CROP_THRESHOLDS
         _dli = DLIEngine(crop="lettuce")
+        # Restore DLI from previous session if same day
+        try:
+            dli_state = load_json(DLI_STATE_PATH, {})
+            today = datetime.now().strftime("%Y-%m-%d")
+            if dli_state.get("date") == today and dli_state.get("accumulated", 0) > 0:
+                _dli.accumulated = float(dli_state["accumulated"])
+                saved_crop = dli_state.get("crop", "lettuce")
+                _dli.set_crop(saved_crop)
+                log.info("Restored DLI: %.2f mol/m² for %s", _dli.accumulated, saved_crop)
+        except Exception as re:
+            log.warning("DLI restore failed: %s", re)
         _ai_ready = True
         log.info("AI model loaded successfully — BiLSTM PV R²=0.9085 PAR R²=0.8926")
     except Exception as e:
         _ai_error = str(e)
         log.warning("AI model not loaded: %s", e)
 
+# Beirut coordinates
+BEIRUT_LAT = 33.8938
+BEIRUT_LON = 35.5018
+OWM_API_KEY = "783c93efcb81b26150fb9368a37ce1cb"
+
+def _fetch_owm_data() -> dict:
+    """Fetch current weather from OpenWeatherMap for Beirut."""
+    url = (f"https://api.openweathermap.org/data/2.5/weather"
+           f"?lat={BEIRUT_LAT}&lon={BEIRUT_LON}&appid={OWM_API_KEY}&units=metric")
+    import urllib.request
+    with urllib.request.urlopen(url, timeout=8) as r:
+        return json.loads(r.read().decode())
+
+def _cloud_to_ghi(cloud_pct: float, hour: float) -> float:
+    """Estimate GHI from cloud cover % and hour of day."""
+    # Clear-sky GHI based on solar angle
+    if hour < 6 or hour > 20:
+        return 0.0
+    solar_angle = np.pi * (hour - 6) / 14
+    clear_sky = max(0.0, 950 * np.sin(solar_angle))
+    # Cloud cover reduces GHI
+    clear_factor = 1.0 - (cloud_pct / 100.0) * 0.75
+    return clear_sky * clear_factor
+
 def _get_sensor_window() -> "pd.DataFrame":
-    """Demo synthetic sensor data. Replace with real DB query when available."""
-    now   = datetime.now()
-    n     = 24
-    hours = [(now.hour * 60 + now.minute + i * 5) / 60 % 24 for i in range(n)]
+    """Build sensor window from real OpenWeatherMap data for Beirut."""
+    now = datetime.utcnow()
+    beirut_hour = (now.hour + 3) % 24  # UTC+3
+
+    # Try to fetch real weather data
+    try:
+        wx = _fetch_owm_data()
+        clouds    = wx.get("clouds", {}).get("all", 50)       # cloud cover %
+        temp_c    = wx.get("main", {}).get("temp", 22.0)      # air temp °C
+        humidity  = wx.get("main", {}).get("humidity", 60)    # humidity %
+        wind_spd  = wx.get("wind", {}).get("speed", 3.0)      # wind m/s
+        # OWM free tier doesn't give direct GHI — derive from clouds
+        current_ghi = _cloud_to_ghi(clouds, beirut_hour)
+        log.info("[OWM] Beirut: clouds=%d%% temp=%.1f°C GHI_est=%.0fW/m²",
+                 clouds, temp_c, current_ghi)
+        use_real = True
+    except Exception as e:
+        log.warning("[OWM] Failed to fetch weather: %s — falling back to synthetic", e)
+        clouds = 30; temp_c = 22.0; current_ghi = _cloud_to_ghi(30, beirut_hour)
+        use_real = False
+
+    # Build 24-step window (last 2 hours at 5-min intervals)
+    n = 24
+    # Each step is 5 min back from now
+    hours = [(beirut_hour * 60 + now.minute - (n - 1 - i) * 5) / 60 % 24
+             for i in range(n)]
+
     np.random.seed(int(now.timestamp()) % 999)
-    ghi  = [max(0.0, 600 * np.sin(np.pi * (h - 6) / 14) + np.random.normal(0, 25)) for h in hours]
-    dhi  = [max(0.0, g * 0.15 + np.random.normal(0, 5)) for g in ghi]
-    par  = [max(0.0, g * 1.8  + np.random.normal(0, 20)) for g in ghi]
+    noise_scale = 15 if use_real else 25
+
+    ghi = []
+    for i, h in enumerate(hours):
+        base = _cloud_to_ghi(clouds, h)
+        # Most recent value uses actual current conditions
+        if i == n - 1:
+            val = current_ghi + np.random.normal(0, noise_scale * 0.3)
+        else:
+            val = base + np.random.normal(0, noise_scale)
+        ghi.append(max(0.0, val))
+
+    dhi  = [max(0.0, g * (0.15 + clouds/100*0.1) + np.random.normal(0, 5)) for g in ghi]
+    par  = [max(0.0, g * 1.8 + np.random.normal(0, 20)) for g in ghi]
     alb  = [max(0.0, g * 0.12) for g in ghi]
-    temp = [18 + g / 80 + np.random.normal(0, 0.5) for g in ghi]
+    temp = [max(5.0, temp_c - (ghi[-1] - g) / 200 + np.random.normal(0, 0.3)) for g in ghi]
+
     df = pd.DataFrame({
-        "GHI (W.m-2)":         ghi,
-        "DHI_SPN1 (W.m-2)":    dhi,
-        "PAR (umol.s-1.m-2)":  par,
-        "Albedometer (W.m-2)":  alb,
-        "airtemp_underpanel":   temp,
+        "GHI (W.m-2)":        ghi,
+        "DHI_SPN1 (W.m-2)":   dhi,
+        "PAR (umol.s-1.m-2)": par,
+        "Albedometer (W.m-2)": alb,
+        "airtemp_underpanel":  temp,
         "sin_hour": [np.sin(2 * np.pi * h / 24) for h in hours],
         "cos_hour": [np.cos(2 * np.pi * h / 24) for h in hours],
     })
@@ -173,6 +244,16 @@ def _run_inference():
         result["timestamp"] = datetime.now().isoformat()
         with _lock:
             _payload = result
+
+        # Persist DLI state so it survives restarts
+        try:
+            save_json(DLI_STATE_PATH, {
+                "accumulated": _dli.accumulated,
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "crop": _dli.crop,
+            })
+        except Exception as de:
+            log.warning("DLI state save failed: %s", de)
 
         # Save to history
         try:
