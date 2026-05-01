@@ -402,12 +402,128 @@ def page_design():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+# ── PAGE 4: HISTORY ──────────────────────────────────────────────────────────
+def page_history():
+    st.markdown('<div class="page-header"><div class="page-title">📈 Farm History</div><div class="page-sub">Last 24 hours of AI forecast records</div></div>', unsafe_allow_html=True)
+
+    try:
+        hist = api_get("/history", timeout=10)
+    except Exception as e:
+        st.error("Could not load history."); st.caption(str(e)); return
+
+    records = hist.get("records", [])
+    if len(records) < 2:
+        st.info("Not enough history yet — come back after a few forecast cycles (every 30 min).")
+        return
+
+    df = pd.DataFrame(records)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.sort_values("timestamp")
+    df["time"] = df["timestamp"].dt.strftime("%H:%M")
+
+    CHART_DARK = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="rgba(255,255,255,0.6)", family="DM Sans", size=11),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.08)", linecolor="rgba(255,255,255,0.08)", tickfont=dict(size=10)),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
+        margin=dict(l=8,r=8,t=8,b=8), height=220)
+
+    # ── Row 1: PV + PAR ───────────────────────────────────────────────────────
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="label" style="margin-bottom:10px">PV PEAK POWER (kW)</div>', unsafe_allow_html=True)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df["time"], y=df["pv_peak_kw"], fill="tozeroy",
+            fillcolor="rgba(34,197,94,0.1)", line=dict(color="#22c55e", width=2),
+            mode="lines+markers", marker=dict(size=4)))
+        fig.update_layout(**CHART_DARK)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="label" style="margin-bottom:10px">CROP LIGHT PAR (μmol/s/m²)</div>', unsafe_allow_html=True)
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=df["time"], y=df["par_mean"], fill="tozeroy",
+            fillcolor="rgba(245,158,11,0.1)", line=dict(color="#f59e0b", width=2),
+            mode="lines+markers", marker=dict(size=4)))
+        fig2.update_layout(**CHART_DARK)
+        st.plotly_chart(fig2, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Row 2: DLI + Irrigation ───────────────────────────────────────────────
+    c3, c4 = st.columns(2, gap="large")
+    with c3:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="label" style="margin-bottom:10px">DLI ACCUMULATED (mol/m²)</div>', unsafe_allow_html=True)
+        fig3 = go.Figure()
+        fig3.add_trace(go.Scatter(x=df["time"], y=df["dli_accumulated"], fill="tozeroy",
+            fillcolor="rgba(96,165,250,0.1)", line=dict(color="#60a5fa", width=2),
+            mode="lines+markers", marker=dict(size=4)))
+        fig3.update_layout(**CHART_DARK)
+        st.plotly_chart(fig3, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="label" style="margin-bottom:10px">IRRIGATION SCHEDULE (%)</div>', unsafe_allow_html=True)
+        fig4 = go.Figure()
+        fig4.add_trace(go.Scatter(x=df["time"], y=df["irrigation_pct"], fill="tozeroy",
+            fillcolor="rgba(167,139,250,0.1)", line=dict(color="#a78bfa", width=2),
+            mode="lines+markers", marker=dict(size=4)))
+        fig4.add_hline(y=100, line=dict(color="rgba(255,255,255,0.2)", dash="dot", width=1))
+        fig4.update_layout(**CHART_DARK, yaxis=dict(gridcolor="rgba(255,255,255,0.08)", range=[50,105]))
+        st.plotly_chart(fig4, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── stress timeline ───────────────────────────────────────────────────────
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="label" style="margin-bottom:10px">STRESS ALERTS & CONFIG RECOMMENDATIONS</div>', unsafe_allow_html=True)
+    stress_times = df[df["stress_alert"] == True]["time"].tolist()
+    if stress_times:
+        st.markdown(f'<div class="caption" style="margin-bottom:8px">⚠️ Stress detected at: {", ".join(stress_times)}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="caption" style="margin-bottom:8px">✅ No stress alerts in this period</div>', unsafe_allow_html=True)
+
+    # config timeline
+    colors_map = {"Fixedtilt": "#6b7280", "Vertical": "#22c55e", "Fixed-tilt": "#6b7280"}
+    fig5 = go.Figure()
+    for cfg in df["recommended_config"].unique():
+        mask = df["recommended_config"] == cfg
+        fig5.add_trace(go.Scatter(
+            x=df[mask]["time"], y=df[mask]["pv_peak_kw"],
+            name=cfg, mode="markers",
+            marker=dict(size=10, color=colors_map.get(cfg, "#ffffff"), symbol="circle")))
+    fig5.update_layout(**CHART_DARK, height=140,
+        yaxis=dict(title="PV kW", gridcolor="rgba(255,255,255,0.08)"))
+    st.plotly_chart(fig5, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── summary stats ─────────────────────────────────────────────────────────
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="label" style="margin-bottom:12px">PERIOD SUMMARY</div>', unsafe_allow_html=True)
+    s1,s2,s3,s4 = st.columns(4, gap="medium")
+    s1.metric("Avg PV peak",    f'{df["pv_peak_kw"].mean():.1f} kW')
+    s2.metric("Avg PAR",        f'{df["par_mean"].mean():.0f}')
+    s3.metric("Max DLI",        f'{df["dli_accumulated"].max():.1f} mol/m²')
+    s4.metric("Stress events",  str(df["stress_alert"].sum()))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.button("🔄 Refresh history", key="hist_refresh"): st.rerun()
+
+
 def main():
     st.set_page_config(page_title="Agrivoltaic Dashboard", layout="wide")
-    tabs = st.tabs(["Overview", "AI Forecast", "Design & Compare"])
+    tabs = st.tabs(["Overview", "AI Forecast", "Design & Compare", "History"])
     with tabs[0]: page_overview()
     with tabs[1]: page_forecast()
     with tabs[2]: page_design()
+    with tabs[3]: page_history()
 
 if __name__ == "__main__":
     main()
