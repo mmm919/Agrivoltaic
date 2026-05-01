@@ -171,7 +171,7 @@ def page_overview():
         current_crop = d.get("crop", "lettuce")
 
     # Build unified data dict from live comparison
-    rec_cfg  = comp.get("recommended_config", "—")
+    rec_cfg  = comp.get("recommended_config", "—").replace("Fixedtilt","Fixed-tilt")
     if rec_cfg == "Vertical":
         fc = comp.get("vertical_forecast", {})
     else:
@@ -293,7 +293,7 @@ def page_forecast():
     # Also get DLI/stress data from cached forecast
     d, _ = fetch_forecast()
 
-    rec_cfg   = comp.get("recommended_config", "—")
+    rec_cfg   = comp.get("recommended_config", "—").replace("Fixedtilt","Fixed-tilt")
     fixed_par = comp.get("fixed_par_mean", 0)
     vert_par  = comp.get("vertical_par_mean", 0)
     fixed_pv  = comp.get("fixed_pv_kwh", 0)
