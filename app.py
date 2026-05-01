@@ -217,39 +217,68 @@ def page_forecast():
         crop_opts = ["lettuce","spinach","wheat","tomato","cucumber","pepper"]
         crop_sel  = st.selectbox("🌿 Crop type", crop_opts, key="fc_crop")
     with ctrl2:
-        alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, 0.7, 0.05, key="fc_alpha")
+        alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, 0.7, 0.05, key="fc_alpha",
+                              help="0 = max energy · 1 = max crop light")
     with ctrl3:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Apply settings", key="fc_apply"):
-            try:
-                api_post(f"/crop/{crop_sel}"); api_post("/treatment/alpha", {"alpha": alpha_sel})
-                st.success("Applied")
-            except Exception as e: st.error(str(e))
+        apply = st.button("Apply & refresh", key="fc_apply")
+
+    # Apply crop setting if changed
+    if apply:
+        try:
+            api_post(f"/crop/{crop_sel}")
+            api_post("/treatment/alpha", {"alpha": alpha_sel})
+        except Exception as e:
+            st.error(str(e))
+
+    # Always fetch live comparison with current alpha slider value
+    # This calls /treatment/compare?alpha=X which runs the model instantly
+    try:
+        comp = api_get(f"/treatment/compare?alpha={alpha_sel}", timeout=15)
+    except requests.exceptions.HTTPError as e:
+        if e.response and e.response.status_code == 503:
+            st.warning("⏳ AI model warming up — refresh in ~30 seconds.")
+        else:
+            st.error(f"Backend error: {e}")
+        return
+    except Exception as e:
+        st.error("Backend not reachable."); st.caption(str(e)); return
+
+    # Also get DLI/stress data from cached forecast
+    d, _ = fetch_forecast()
+
+    rec_cfg   = comp.get("recommended_config", "—")
+    fixed_par = comp.get("fixed_par_mean", 0)
+    vert_par  = comp.get("vertical_par_mean", 0)
+    fixed_pv  = comp.get("fixed_pv_kwh", 0)
+    vert_pv   = comp.get("vertical_pv_kwh", 0)
+    reason    = comp.get("reason", "")
+
+    # Use recommended config forecast for chart
+    if rec_cfg == "Vertical":
+        fc = comp.get("vertical_forecast", {})
+    else:
+        fc = comp.get("fixed_forecast", {})
+
+    pv_vals  = fc.get("pv_forecast_kw", [])
+    par_vals = fc.get("par_forecast", [])
+    mins     = [f"+{(i+1)*5}m" for i in range(len(pv_vals))]
 
     st.markdown("<br>", unsafe_allow_html=True)
-    d, err = fetch_forecast()
-    if err: show_backend_error(err); return
-
-    pv_vals = d.get("pv_forecast_kw",[]); par_vals = d.get("par_forecast",[])
-    mins = [f"+{(i+1)*5}m" for i in range(len(pv_vals))]
-
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="label" style="margin-bottom:12px">BILSTM FORECAST — PV POWER & CROP LIGHT (NEXT 60 MIN)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="label" style="margin-bottom:12px">BILSTM FORECAST — {rec_cfg.upper()} CONFIG · α={alpha_sel}</div>', unsafe_allow_html=True)
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#22c55e",width=2.5), fill="tozeroy", fillcolor="rgba(45,106,79,0.08)", yaxis="y1", mode="lines+markers", marker=dict(size=5,color="#22c55e")))
-    fig.add_trace(go.Scatter(x=mins, y=par_vals, name="Crop light PAR (μmol/s/m²)", line=dict(color="#b7791f",width=2.5), yaxis="y2", mode="lines+markers", marker=dict(size=5,color="#b7791f")))
+    fig.add_trace(go.Scatter(x=mins, y=pv_vals, name="PV power (kW)", line=dict(color="#22c55e",width=2.5), fill="tozeroy", fillcolor="rgba(34,197,94,0.08)", yaxis="y1", mode="lines+markers", marker=dict(size=5,color="#22c55e")))
+    fig.add_trace(go.Scatter(x=mins, y=par_vals, name="Crop light PAR (μmol/s/m²)", line=dict(color="#f59e0b",width=2.5), yaxis="y2", mode="lines+markers", marker=dict(size=5,color="#f59e0b")))
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="PV power (kW)",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="PAR (μmol/s/m²)",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.2,bgcolor="rgba(0,0,0,0)"),height=280,margin=dict(l=8,r=8,t=8,b=50))
     st.plotly_chart(fig, use_container_width=True)
     s1,s2,s3 = st.columns(3)
-    s1.metric("PV peak", f'{d.get("pv_peak_kw",0):.1f} kW')
-    s2.metric("Energy next hour", f'{d.get("pv_total_kwh",0):.1f} kWh')
-    s3.metric("Crop light mean", f'{d.get("par_mean",0):.0f} μmol/s/m²')
+    s1.metric("PV peak", f'{fc.get("pv_peak_kw",0):.1f} kW')
+    s2.metric("Energy next hour", f'{fc.get("pv_total_kwh",0):.1f} kWh')
+    s3.metric("Crop light mean", f'{fc.get("par_mean",0):.0f} μmol/s/m²')
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    rec_cfg=d.get("recommended_config","—"); fixed_par=d.get("fixed_par_mean",0); vert_par=d.get("vertical_par_mean",0)
-    fixed_pv=d.get("fixed_pv_kwh",0); vert_pv=d.get("vertical_pv_kwh",0); reason=d.get("recommendation_reason",""); alpha_val=d.get("alpha_crop_priority",0.7)
-
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="label" style="margin-bottom:14px">FIXED-TILT VS VERTICAL — TREATMENT COMPARISON</div>', unsafe_allow_html=True)
     fig_comp = go.Figure()
@@ -265,9 +294,8 @@ def page_forecast():
             bg = "rgba(34,197,94,0.07)" if is_rec else "rgba(255,255,255,0.04)"
             rec_b = '<span class="badge badge-rec">Recommended</span>' if is_rec else ""
             st.markdown(f'<div style="border:{border};background:{bg};border-radius:10px;padding:14px 16px"><div style="font-weight:600;margin-bottom:8px">{cfg} {rec_b}</div><div style="display:flex;gap:20px"><div><div class="label">PAR mean</div><div class="value-sm">{par_v:.0f}</div></div><div><div class="label">Energy</div><div class="value-sm">{pv_v:.1f} kWh</div></div></div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="caption" style="margin-top:8px">{reason} · α={alpha_val}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="caption" style="margin-top:8px">{reason}</div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-    if st.button("🔄 Refresh forecast", key="fc_refresh"): st.rerun()
 
 
 # ── PAGE 3: DESIGN & COMPARE ──────────────────────────────────────────────────
