@@ -249,7 +249,16 @@ def page_forecast():
     header("🤖 AI Forecast", "BiLSTM model — PV R²=0.9085 · PAR R²=0.8926")
     c1,c2,c3 = st.columns([1,1,1], gap="large")
     with c1: crop_sel = st.selectbox("🌿 Crop", ["lettuce","tomato","wheat"], key="fc_crop")
-    with c2: alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, 0.7, 0.05, key="fc_alpha", help="0=max energy · 1=max crop light")
+    # Read current alpha from backend to keep in sync with Overview
+    try:
+        _ai = api_get("/ai/status", timeout=5)
+        _backend_alpha = float(_ai.get("alpha", 0.7))
+    except:
+        _backend_alpha = 0.7
+    # Only set default from backend if slider hasn't been touched this session
+    if "fc_alpha" not in st.session_state:
+        st.session_state["fc_alpha"] = _backend_alpha
+    with c2: alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, _backend_alpha, 0.05, key="fc_alpha", help="0=max energy · 1=max crop light")
     with c3:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Apply & refresh", key="fc_apply"):
