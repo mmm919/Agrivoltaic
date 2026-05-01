@@ -119,6 +119,36 @@ def show_err(err):
 
 def pbar(pct, color): return f'<div class="pt-track"><div class="pt-fill" style="width:{min(pct,100):.0f}%;background:{color}"></div></div>'
 
+def run_status_bar(d):
+    """Show last run timestamp and next run countdown."""
+    ts = d.get("timestamp","")
+    if not ts:
+        return
+    try:
+        from datetime import datetime, timezone
+        last = datetime.fromisoformat(ts)
+        now  = datetime.now()
+        mins_ago = int((now - last).total_seconds() / 60)
+        next_in  = max(0, 30 - mins_ago)
+        if mins_ago == 0:
+            last_str = "just now"
+        elif mins_ago == 1:
+            last_str = "1 min ago"
+        else:
+            last_str = f"{mins_ago} min ago"
+        next_str = "due now" if next_in == 0 else f"in {next_in} min"
+        crop = d.get("crop","lettuce").capitalize()
+        st.markdown(
+            f'''<div style="display:flex;gap:24px;align-items:center;padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;margin-bottom:16px;flex-wrap:wrap">
+            <div style="font-size:11px;color:rgba(255,255,255,0.4)">🕐 Last run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{last_str}</span> &nbsp;({ts[11:16] if len(ts)>15 else ts})</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4)">⏭ Next run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{next_str}</span></div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4)">🌿 Active crop: <span style="color:#22c55e;font-weight:600">{crop}</span></div>
+            </div>''',
+            unsafe_allow_html=True
+        )
+    except:
+        pass
+
 def header(title, sub): st.markdown(f'<div class="ph"><div class="pt">{title}</div><div class="ps">{sub}</div></div>', unsafe_allow_html=True)
 
 
@@ -181,6 +211,7 @@ def page_overview():
         st.markdown(f'<div class="cap" style="margin-top:4px">{reason}</div>', unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
+    if d: run_status_bar(d)
     if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
 
 
@@ -248,6 +279,12 @@ def page_dli():
     header("🌞 Daily Light Integral", "Crop light budget tracking and recommendations")
     d, err = fetch_forecast()
     if err: show_err(err); return
+    # Sync crop from backend so it matches AI Forecast page
+    try:
+        ai = api_get("/ai/status", timeout=5)
+        d["crop"] = ai.get("crop", d.get("crop","lettuce"))
+    except: pass
+    run_status_bar(d)
 
     crop      = d.get("crop","lettuce").capitalize()
     dli_acc   = d.get("dli_accumulated", 0)
@@ -328,6 +365,12 @@ def page_irrigation():
     header("💧 Irrigation", "Automated irrigation management and recommendations")
     d, err = fetch_forecast()
     if err: show_err(err); return
+    # Sync crop from backend so it matches AI Forecast page
+    try:
+        ai = api_get("/ai/status", timeout=5)
+        d["crop"] = ai.get("crop", d.get("crop","lettuce"))
+    except: pass
+    run_status_bar(d)
 
     irr_pct   = d.get("irrigation_pct", 100)
     irr_factor= d.get("irrigation_factor", 1.0)
