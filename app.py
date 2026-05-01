@@ -140,7 +140,12 @@ def run_status_bar(d):
         else:
             last_str = f"{mins_ago} min ago"
         next_str = "due now" if next_in == 0 else f"in {next_in} min"
-        crop = d.get("crop","lettuce").capitalize()
+        # Always read crop from ai/status for accuracy
+        try:
+            _ai_s = api_get("/ai/status", timeout=3)
+            crop = _ai_s.get("crop", d.get("crop","lettuce")).capitalize()
+        except:
+            crop = d.get("crop","lettuce").capitalize()
         time_display = last_beirut.strftime("%H:%M")
         st.markdown(
             f'''<div style="display:flex;gap:24px;align-items:center;padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;margin-bottom:16px;flex-wrap:wrap">
