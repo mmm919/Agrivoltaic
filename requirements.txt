@@ -1,5 +1,4 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch
 streamlit
 pandas
 numpy
@@ -8,4 +7,6 @@ python-dateutil
 fastapi
 uvicorn
 requests
-
+torch
+scikit-learn
+joblib
