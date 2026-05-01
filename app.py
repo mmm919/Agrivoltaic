@@ -154,64 +154,89 @@ def header(title, sub): st.markdown(f'<div class="ph"><div class="pt">{title}</d
 
 # ── PAGE 1: OVERVIEW ─────────────────────────────────────────────────────────
 def page_overview():
-    header("🌱 Overview", "Live farm status — AI powered")
+    header("🌱 Overview", "Farm status at a glance")
+
+    # Fetch all data
     try:
         ai = api_get("/ai/status", timeout=5)
-        alpha_val = ai.get("alpha", st.session_state.get("fc_alpha", 0.7))
+        alpha_val = ai.get("alpha", 0.7)
         current_crop = ai.get("crop", "lettuce")
     except:
-        alpha_val = st.session_state.get("fc_alpha", 0.7)
-        current_crop = "lettuce"
+        alpha_val = 0.7; current_crop = "lettuce"
 
-    comp, d, err = fetch_live(alpha_val)
+    d, err = fetch_forecast()
     if err: show_err(err); return
+    run_status_bar(d)
 
-    rec_cfg = comp.get("recommended_config","—")
-    fc = comp.get("vertical_forecast",{}) if rec_cfg=="Vertical" else comp.get("fixed_forecast",{})
-    stressed = d.get("stress_alert", False)
-    dli_pct  = d.get("dli_pct", 0)
-    irr_pct  = d.get("irrigation_pct", 100)
+    try:
+        comp = api_get(f"/treatment/compare?alpha={alpha_val}", timeout=15)
+        comp["recommended_config"] = comp.get("recommended_config","—").replace("Fixedtilt","Fixed-tilt")
+        rec_cfg = comp.get("recommended_config","—")
+        fc = comp.get("vertical_forecast",{}) if rec_cfg=="Vertical" else comp.get("fixed_forecast",{})
+    except:
+        rec_cfg = "—"; fc = {}
 
+    stressed  = d.get("stress_alert", False)
+    dli_pct   = d.get("dli_pct", 0)
+    dli_acc   = d.get("dli_accumulated", 0)
+    dli_thresh= d.get("dli_threshold", 14.0)
+    irr_pct   = d.get("irrigation_pct", 100)
+    msg       = d.get("alert_message","")
+
+    # ── 4 KPI cards ───────────────────────────────────────────────────────────
     k1,k2,k3,k4 = st.columns(4, gap="medium")
-    with k1: st.markdown(f'<div class="card"><div class="lbl">PV Peak Power</div><div class="vlg">{fc.get("pv_peak_kw",0):.1f} <span style="font-size:14px;color:var(--muted)">kW</span></div><div class="cap">Next 60 min forecast</div></div>', unsafe_allow_html=True)
-    with k2: st.markdown(f'<div class="card"><div class="lbl">Crop Light (PAR)</div><div class="vlg">{fc.get("par_mean",0):.0f} <span style="font-size:14px;color:var(--muted)">umol/s/m2</span></div><div class="cap">Mean over next hour</div></div>', unsafe_allow_html=True)
+    with k1: st.markdown(f'<div class="card"><div class="lbl">PV Peak Power</div><div class="vlg">{fc.get("pv_peak_kw",0):.1f} <span style="font-size:14px;color:var(--muted)">kW</span></div><div class="cap">Next 60 min</div></div>', unsafe_allow_html=True)
+    with k2: st.markdown(f'<div class="card"><div class="lbl">Crop Light (PAR)</div><div class="vlg">{fc.get("par_mean",0):.0f} <span style="font-size:14px;color:var(--muted)">umol/s/m2</span></div><div class="cap">Mean next hour</div></div>', unsafe_allow_html=True)
     with k3:
         gc = "#22c55e" if not stressed else "#ef4444"
-        badge = '<span class="badge bg">On track</span>' if not stressed else '<span class="badge br">Stress detected</span>'
+        badge = '<span class="badge bg">On track</span>' if not stressed else '<span class="badge br">Stress</span>'
         st.markdown(f'<div class="card"><div class="lbl">DLI — {current_crop.capitalize()}</div><div class="vlg">{dli_pct:.0f}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(dli_pct,gc)}<div style="margin-top:6px">{badge}</div></div>', unsafe_allow_html=True)
     with k4:
         ic = "#22c55e" if irr_pct>=90 else ("#f59e0b" if irr_pct>=70 else "#ef4444")
-        st.markdown(f'<div class="card"><div class="lbl">Irrigation</div><div class="vlg" style="color:{ic}">{irr_pct}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(irr_pct,ic)}<div class="cap">of normal schedule</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card"><div class="lbl">Irrigation</div><div class="vlg" style="color:{ic}">{irr_pct}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(irr_pct,ic)}<div class="cap">of schedule</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    cl, cr = st.columns([1.6,1.0], gap="large")
-    with cl:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="lbl" style="margin-bottom:10px">PV POWER + CROP LIGHT — NEXT 60 MIN</div>', unsafe_allow_html=True)
-        pv_v=fc.get("pv_forecast_kw",[]); par_v=fc.get("par_forecast",[])
-        mins=[f"+{(i+1)*5}m" for i in range(len(pv_v))]
-        fig=go.Figure()
-        fig.add_trace(go.Scatter(x=mins,y=pv_v,name="PV (kW)",line=dict(color="#22c55e",width=2.5),fill="tozeroy",fillcolor="rgba(34,197,94,0.08)",yaxis="y1",mode="lines+markers",marker=dict(size=4)))
-        fig.add_trace(go.Scatter(x=mins,y=par_v,name="PAR (umol/s/m2)",line=dict(color="#f59e0b",width=2.5),yaxis="y2",mode="lines+markers",marker=dict(size=4)))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(title="kW",gridcolor="rgba(255,255,255,0.08)"),yaxis2=dict(title="PAR",overlaying="y",side="right",gridcolor="rgba(0,0,0,0)"),legend=dict(orientation="h",y=-0.22,bgcolor="rgba(0,0,0,0)"),height=230,margin=dict(l=8,r=8,t=8,b=40))
-        st.plotly_chart(fig,use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    with cr:
-        fixed_par=comp.get("fixed_par_mean",0); vert_par=comp.get("vertical_par_mean",0)
-        fixed_pv=comp.get("fixed_pv_kwh",0); vert_pv=comp.get("vertical_pv_kwh",0)
-        reason=comp.get("reason","")
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="lbl" style="margin-bottom:10px">PANEL RECOMMENDATION</div>', unsafe_allow_html=True)
-        for cfg,pv_val,par_val in [("Fixed-tilt",fixed_pv,fixed_par),("Vertical",vert_pv,vert_par)]:
-            is_rec=cfg==rec_cfg
-            b="2px solid #22c55e" if is_rec else "1px solid rgba(255,255,255,0.08)"
-            bg="rgba(34,197,94,0.07)" if is_rec else "rgba(255,255,255,0.03)"
-            rb='<span class="badge brec" style="font-size:10px;margin-left:6px">Recommended</span>' if is_rec else ""
-            st.markdown(f'<div style="border:{b};background:{bg};border-radius:10px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:600;font-size:13px">{cfg}{rb}</div><div style="display:flex;gap:20px;margin-top:6px"><div><div class="lbl">PAR</div><div class="vsm">{par_val:.0f}</div></div><div><div class="lbl">Energy</div><div class="vsm">{pv_val:.1f} kWh</div></div></div></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="cap" style="margin-top:4px">{reason}</div>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    if d: run_status_bar(d)
+    # ── 3 status panels ───────────────────────────────────────────────────────
+    s1,s2,s3 = st.columns(3, gap="large")
+
+    with s1:
+        cls = "card-red" if stressed else "card-green"
+        icon = "⚠️" if stressed else "✅"
+        st.markdown(f'''<div class="{cls}">
+            <div style="font-weight:700;margin-bottom:6px">{icon} Crop Light Status</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">{msg}</div>
+            <div style="display:flex;gap:20px;margin-top:10px">
+                <div><div class="lbl">Collected</div><div class="vsm">{dli_acc:.1f} mol/m²</div></div>
+                <div><div class="lbl">Target</div><div class="vsm">{dli_thresh:.0f} mol/m²/day</div></div>
+            </div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See DLI tab for details</span></div>
+        </div>''', unsafe_allow_html=True)
+
+    with s2:
+        irr_cls = "card-green" if irr_pct>=90 else ("card-amber" if irr_pct>=70 else "card-red")
+        irr_msg = "Running at full schedule" if irr_pct==100 else f"Reduced by {100-irr_pct}% due to light deficit"
+        st.markdown(f'''<div class="{irr_cls}">
+            <div style="font-weight:700;margin-bottom:6px">💧 Irrigation Status</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">{irr_msg}</div>
+            <div style="margin-top:10px"><div class="lbl">Current schedule</div>
+            <div style="font-size:22px;font-weight:700;color:{ic}">{irr_pct}%</div></div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See Irrigation tab for details</span></div>
+        </div>''', unsafe_allow_html=True)
+
+    with s3:
+        fixed_par=comp.get("fixed_par_mean",0) if comp else 0
+        vert_par=comp.get("vertical_par_mean",0) if comp else 0
+        fixed_pv=comp.get("fixed_pv_kwh",0) if comp else 0
+        vert_pv=comp.get("vertical_pv_kwh",0) if comp else 0
+        reason=comp.get("reason","") if comp else ""
+        st.markdown(f'''<div class="card-green">
+            <div style="font-weight:700;margin-bottom:6px">☀️ Panel Recommendation</div>
+            <div style="font-size:20px;font-weight:700;color:#22c55e;margin-bottom:4px">{rec_cfg}</div>
+            <div style="font-size:13px;color:var(--text);line-height:1.6">{reason}</div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See AI Forecast tab for details</span></div>
+        </div>''', unsafe_allow_html=True)
+
     if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
 
 
