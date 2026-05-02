@@ -189,8 +189,17 @@ def page_overview():
     dli_pct   = d.get("dli_pct", 0)
     dli_acc   = d.get("dli_accumulated", 0)
     dli_thresh= d.get("dli_threshold", 14.0)
+    dli_def   = d.get("dli_deficit", 0)
     irr_pct   = d.get("irrigation_pct", 100)
-    msg       = d.get("alert_message","")
+    # Rebuild alert message using current crop name
+    if stressed:
+        msg = (f"Crop light stress detected. Projected DLI {d.get('dli_projected_eod',0):.1f} mol/m² "
+               f"is below {current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day "
+               f"(deficit {dli_def:.1f} mol/m²). Irrigation reduced to {irr_pct}% of normal.")
+    else:
+        msg = (f"DLI on track — projected {d.get('dli_projected_eod',0):.1f} mol/m² by sunset. "
+               f"{current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day will be met. "
+               f"Irrigation at {irr_pct}%.")
 
     # ── 4 KPI cards ───────────────────────────────────────────────────────────
     k1,k2,k3,k4 = st.columns(4, gap="medium")
