@@ -188,9 +188,14 @@ def page_overview():
     stressed  = d.get("stress_alert", False)
     dli_pct   = d.get("dli_pct", 0)
     dli_acc   = d.get("dli_accumulated", 0)
-    dli_thresh= d.get("dli_threshold", 14.0)
     dli_def   = d.get("dli_deficit", 0)
     irr_pct   = d.get("irrigation_pct", 100)
+    # Read threshold from ai/status so it updates immediately when crop changes
+    try:
+        _ai_thresh = api_get("/ai/status", timeout=3)
+        dli_thresh = float(_ai_thresh.get("dli_threshold", d.get("dli_threshold", 14.0)))
+    except:
+        dli_thresh = d.get("dli_threshold", 14.0)
     # Rebuild alert message using current crop name
     if stressed:
         msg = (f"Crop light stress detected. Projected DLI {d.get('dli_projected_eod',0):.1f} mol/m² "
