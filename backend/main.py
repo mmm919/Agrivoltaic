@@ -7,22 +7,21 @@ import logging
 import threading
 import time
 import asyncio
-import hashlib
-import secrets
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Literal, Optional
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Literal
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field, EmailStr
-import httpx
+from pydantic import BaseModel, Field
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s – %(message)s",
+)
 log = logging.getLogger("farm_api")
 
 BASE_DIR     = Path(__file__).resolve().parent
@@ -30,119 +29,32 @@ STORAGE_DIR  = BASE_DIR / "storage"
 SETTINGS_PATH = STORAGE_DIR / "settings.json"
 ALERTS_PATH   = STORAGE_DIR / "alerts.json"
 UPDATES_PATH  = STORAGE_DIR / "updates.json"
+
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_PATH  = STORAGE_DIR / "history.json"
 DLI_STATE_PATH = STORAGE_DIR / "dli_state.json"
 
 MAX_ITEMS  = 100
-MAX_HISTORY = 48
+MAX_HISTORY = 48  # keep last 48 records (24 hours at 30-min intervals)
 
-# ── Supabase config ───────────────────────────────────────────────────────────
-SUPABASE_URL = "https://rnontnsjhnlabjenzymh.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJub250bnNqaG5sYWJqZW56eW1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4OTA3NzksImV4cCI6MjA5MzQ2Njc3OX0.NG2K4x3CyAAb41Pf5BuVdGEGs9qckTHKwcyb2z16ce8"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJub250bnNqaG5sYWJqZW56eW1oIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg5MDc3OSwiZXhwIjoyMDkzNDY2Nzc5fQ.cvc95Nloq1p2vkLoXQUHydp7yypuNla7vIWeLIb59ro"
+DEFAULT_SETTINGS: Dict[str, Any] = {
+    "default_location": "Bekaa Valley",
+    "locations": {
+        "Bekaa Valley": {"solar": "High",   "wind": "Low",    "humidity": "Medium"},
+        "Beirut Coast": {"solar": "Medium", "wind": "High",   "humidity": "High"},
+        "Tripoli":      {"solar": "High",   "wind": "Medium", "humidity": "High"},
+        "South Lebanon":{"solar": "High",   "wind": "Medium", "humidity": "Medium"},
+        "Baabda":       {"solar": "Medium", "wind": "Low",    "humidity": "Medium"},
+        "Zahle":        {"solar": "High",   "wind": "Low",    "humidity": "Low"},
+    },
+    "kpis": {"pv": 82, "comfort": 74, "water": 31},
+}
+DEFAULT_ALERTS:  Dict[str, Any] = {"items": []}
+DEFAULT_UPDATES: Dict[str, Any] = {"items": []}
 
-SUPABASE_AUTH_URL = f"{SUPABASE_URL}/auth/v1"
-SUPABASE_REST_URL = f"{SUPABASE_URL}/rest/v1"
 
-def supabase_headers(use_service_key=False):
-    key = SUPABASE_SERVICE_KEY if use_service_key else SUPABASE_ANON_KEY
-    return {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
+# ── storage helpers ───────────────────────────────────────────────────────────
 
-def user_headers(token: str):
-    return {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
-
-# ── Auth helpers ──────────────────────────────────────────────────────────────
-security = HTTPBearer(auto_error=False)
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
-    token = credentials.credentials
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{SUPABASE_AUTH_URL}/user",
-            headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"}
-        )
-    if r.status_code != 200:
-        raise HTTPException(401, "Invalid or expired token")
-    return r.json()
-
-# ── Supabase DB helpers ───────────────────────────────────────────────────────
-async def get_user_dli_state(user_id: str):
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{SUPABASE_REST_URL}/user_dli_state",
-            headers=supabase_headers(use_service_key=True),
-            params={"user_id": f"eq.{user_id}", "limit": "1"}
-        )
-    if r.status_code == 200 and r.json():
-        return r.json()[0]
-    return None
-
-async def upsert_user_dli_state(user_id: str, data: dict):
-    payload = {"user_id": user_id, **data, "updated_at": datetime.utcnow().isoformat()}
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{SUPABASE_REST_URL}/user_dli_state",
-            headers={**supabase_headers(use_service_key=True), "Prefer": "resolution=merge-duplicates,return=representation"},
-            json=payload
-        )
-    return r.status_code in (200, 201)
-
-async def get_user_history(user_id: str, limit: int = 48):
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{SUPABASE_REST_URL}/user_history",
-            headers=supabase_headers(use_service_key=True),
-            params={"user_id": f"eq.{user_id}", "order": "created_at.desc", "limit": str(limit)}
-        )
-    if r.status_code == 200:
-        return list(reversed(r.json()))
-    return []
-
-async def append_user_history(user_id: str, record: dict):
-    payload = {"user_id": user_id, **record, "created_at": datetime.utcnow().isoformat()}
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{SUPABASE_REST_URL}/user_history",
-            headers=supabase_headers(use_service_key=True),
-            json=payload
-        )
-    return r.status_code in (200, 201)
-
-async def get_user_settings(user_id: str):
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{SUPABASE_REST_URL}/user_settings",
-            headers=supabase_headers(use_service_key=True),
-            params={"user_id": f"eq.{user_id}", "limit": "1"}
-        )
-    if r.status_code == 200 and r.json():
-        return r.json()[0]
-    return {"crop": "lettuce", "alpha": 0.7}
-
-async def upsert_user_settings(user_id: str, data: dict):
-    payload = {"user_id": user_id, **data, "updated_at": datetime.utcnow().isoformat()}
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{SUPABASE_REST_URL}/user_settings",
-            headers={**supabase_headers(use_service_key=True), "Prefer": "resolution=merge-duplicates,return=representation"},
-            json=payload
-        )
-    return r.status_code in (200, 201)
-
-# ── Storage helpers ───────────────────────────────────────────────────────────
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -153,7 +65,7 @@ def load_json(path: Path, fallback: Dict[str, Any]) -> Dict[str, Any]:
             if text.strip():
                 return json.loads(text)
     except Exception as exc:
-        log.warning("Failed to load %s (%s) - using defaults", path.name, exc)
+        log.warning("Failed to load %s (%s) — using defaults", path.name, exc)
     return json.loads(json.dumps(fallback))
 
 def save_json(path: Path, data: Dict[str, Any]) -> None:
@@ -167,7 +79,7 @@ def save_json(path: Path, data: Dict[str, Any]) -> None:
         except OSError: pass
         raise
 
-def _migrate_ids(items):
+def _migrate_ids(items: List[Dict[str, Any]]) -> bool:
     changed = False
     for item in items:
         if "id" not in item:
@@ -175,33 +87,25 @@ def _migrate_ids(items):
             changed = True
     return changed
 
-DEFAULT_SETTINGS: Dict[str, Any] = {
-    "default_location": "Bekaa Valley",
-    "locations": {
-        "Bekaa Valley": {"solar": "High", "wind": "Low", "humidity": "Medium"},
-        "Beirut Coast": {"solar": "Medium", "wind": "High", "humidity": "High"},
-        "Tripoli":      {"solar": "High", "wind": "Medium", "humidity": "High"},
-        "South Lebanon":{"solar": "High", "wind": "Medium", "humidity": "Medium"},
-        "Baabda":       {"solar": "Medium", "wind": "Low", "humidity": "Medium"},
-        "Zahle":        {"solar": "High", "wind": "Low", "humidity": "Low"},
-    },
-    "kpis": {"pv": 82, "comfort": 74, "water": 31},
-}
-DEFAULT_ALERTS:  Dict[str, Any] = {"items": []}
-DEFAULT_UPDATES: Dict[str, Any] = {"items": []}
-
-def ensure_storage():
+def ensure_storage() -> None:
     if not SETTINGS_PATH.exists():
         save_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+        log.info("Created default settings.json")
     for path, default in [(ALERTS_PATH, DEFAULT_ALERTS), (UPDATES_PATH, DEFAULT_UPDATES)]:
         if not path.exists():
             save_json(path, default)
+            log.info("Created %s", path.name)
         else:
             data = load_json(path, default)
             if _migrate_ids(data.get("items", [])):
                 save_json(path, data)
+                log.info("Migrated IDs in %s", path.name)
+
 
 # ── AI model setup ────────────────────────────────────────────────────────────
+# These are loaded once at startup. If the model files are missing,
+# the AI endpoints will return 503 instead of crashing the whole server.
+
 _ai_ready   = False
 _ai_error   = ""
 _lock       = threading.Lock()
@@ -224,6 +128,7 @@ def _load_ai_model():
         _compare_treatments = compare_treatments
         _CROP_THRESHOLDS    = CROP_THRESHOLDS
         _dli = DLIEngine(crop="lettuce")
+        # Restore DLI from previous session if same day
         try:
             dli_state = load_json(DLI_STATE_PATH, {})
             today = datetime.now().strftime("%Y-%m-%d")
@@ -231,20 +136,22 @@ def _load_ai_model():
                 _dli.accumulated = float(dli_state["accumulated"])
                 saved_crop = dli_state.get("crop", "lettuce")
                 _dli.set_crop(saved_crop)
-                log.info("Restored DLI: %.2f mol/m2 for %s", _dli.accumulated, saved_crop)
+                log.info("Restored DLI: %.2f mol/m² for %s", _dli.accumulated, saved_crop)
         except Exception as re:
             log.warning("DLI restore failed: %s", re)
         _ai_ready = True
-        log.info("AI model loaded successfully")
+        log.info("AI model loaded successfully — BiLSTM PV R²=0.9085 PAR R²=0.8926")
     except Exception as e:
         _ai_error = str(e)
         log.warning("AI model not loaded: %s", e)
 
+# Beirut coordinates
 BEIRUT_LAT = 33.8938
 BEIRUT_LON = 35.5018
 OWM_API_KEY = "783c93efcb81b26150fb9368a37ce1cb"
 
 def _fetch_owm_data() -> dict:
+    """Fetch current weather from OpenWeatherMap for Beirut."""
     url = (f"https://api.openweathermap.org/data/2.5/weather"
            f"?lat={BEIRUT_LAT}&lon={BEIRUT_LON}&appid={OWM_API_KEY}&units=metric")
     import urllib.request
@@ -252,36 +159,51 @@ def _fetch_owm_data() -> dict:
         return json.loads(r.read().decode())
 
 def _cloud_to_ghi(cloud_pct: float, hour: float) -> float:
+    """Estimate GHI from cloud cover % and hour of day."""
+    # Clear-sky GHI based on solar angle
     if hour < 6 or hour > 20:
         return 0.0
     solar_angle = np.pi * (hour - 6) / 14
     clear_sky = max(0.0, 950 * np.sin(solar_angle))
+    # Cloud cover reduces GHI
     clear_factor = 1.0 - (cloud_pct / 100.0) * 0.75
     return clear_sky * clear_factor
 
 def _get_sensor_window() -> "pd.DataFrame":
+    """Build sensor window from real OpenWeatherMap data for Beirut."""
     now = datetime.utcnow()
-    beirut_hour = (now.hour + 3) % 24
+    beirut_hour = (now.hour + 3) % 24  # UTC+3
+
+    # Try to fetch real weather data
     try:
         wx = _fetch_owm_data()
-        clouds    = wx.get("clouds", {}).get("all", 50)
-        temp_c    = wx.get("main", {}).get("temp", 22.0)
+        clouds    = wx.get("clouds", {}).get("all", 50)       # cloud cover %
+        temp_c    = wx.get("main", {}).get("temp", 22.0)      # air temp °C
+        humidity  = wx.get("main", {}).get("humidity", 60)    # humidity %
+        wind_spd  = wx.get("wind", {}).get("speed", 3.0)      # wind m/s
+        # OWM free tier doesn't give direct GHI — derive from clouds
         current_ghi = _cloud_to_ghi(clouds, beirut_hour)
-        log.info("[OWM] Beirut: clouds=%d%% temp=%.1fC GHI_est=%.0fW/m2", clouds, temp_c, current_ghi)
+        log.info("[OWM] Beirut: clouds=%d%% temp=%.1f°C GHI_est=%.0fW/m²",
+                 clouds, temp_c, current_ghi)
         use_real = True
     except Exception as e:
-        log.warning("[OWM] Failed: %s - falling back to synthetic", e)
+        log.warning("[OWM] Failed to fetch weather: %s — falling back to synthetic", e)
         clouds = 30; temp_c = 22.0; current_ghi = _cloud_to_ghi(30, beirut_hour)
         use_real = False
 
+    # Build 24-step window (last 2 hours at 5-min intervals)
     n = 24
-    hours = [(beirut_hour * 60 + now.minute - (n - 1 - i) * 5) / 60 % 24 for i in range(n)]
+    # Each step is 5 min back from now
+    hours = [(beirut_hour * 60 + now.minute - (n - 1 - i) * 5) / 60 % 24
+             for i in range(n)]
+
     np.random.seed(int(now.timestamp()) % 999)
     noise_scale = 15 if use_real else 25
 
     ghi = []
     for i, h in enumerate(hours):
         base = _cloud_to_ghi(clouds, h)
+        # Most recent value uses actual current conditions
         if i == n - 1:
             val = current_ghi + np.random.normal(0, noise_scale * 0.3)
         else:
@@ -316,11 +238,14 @@ def _run_inference():
         return
     try:
         window = _get_sensor_window()
-        result = _get_full_payload(window, _dli, current_hour=datetime.now().hour, alpha=_alpha)
+        result = _get_full_payload(window, _dli,
+                                   current_hour=datetime.now().hour,
+                                   alpha=_alpha)
         result["timestamp"] = datetime.now().isoformat()
         with _lock:
             _payload = result
 
+        # Persist DLI state so it survives restarts
         try:
             save_json(DLI_STATE_PATH, {
                 "accumulated": _dli.accumulated,
@@ -330,6 +255,7 @@ def _run_inference():
         except Exception as de:
             log.warning("DLI state save failed: %s", de)
 
+        # Save to history
         try:
             hist = load_json(HISTORY_PATH, {"records": []})
             record = {
@@ -350,10 +276,11 @@ def _run_inference():
         except Exception as he:
             log.warning("History save failed: %s", he)
 
-        log.info("[AI] PV=%.1fkW PAR=%.0f DLI=%.2f(%d%%) Stress=%s Irr=%d%%",
+        log.info("[AI] PV=%.1fkW PAR=%.0f DLI=%.2f(%d%%) Stress=%s Irr=%d%% Config=%s",
                  result["pv_peak_kw"], result["par_mean"],
                  result["dli_accumulated"], result["dli_pct"],
-                 result["stress_alert"], result["irrigation_pct"])
+                 result["stress_alert"], result["irrigation_pct"],
+                 result["recommended_config"])
     except Exception as e:
         log.error("[AI] inference error: %s", e)
 
@@ -363,17 +290,11 @@ def _inference_loop(interval_min: int = 30):
         time.sleep(interval_min * 60)
 
 
-# ── Pydantic models ───────────────────────────────────────────────────────────
+# ── pydantic models ───────────────────────────────────────────────────────────
+
 Level     = Literal["Low", "Medium", "High"]
 AlertType = Literal["Info", "Warning", "Critical"]
-
-class RegisterBody(BaseModel):
-    email: str
-    password: str = Field(..., min_length=6)
-
-class LoginBody(BaseModel):
-    email: str
-    password: str
+CropName  = Literal["lettuce", "spinach", "wheat", "tomato", "cucumber", "pepper", "custom"]
 
 class LocationModel(BaseModel):
     solar: Level; wind: Level; humidity: Level
@@ -394,18 +315,15 @@ class UpdateIn(BaseModel):
 class AlphaBody(BaseModel):
     alpha: float
 
-class UserCropBody(BaseModel):
-    crop: str
-    alpha: float = 0.7
 
+# ── app ───────────────────────────────────────────────────────────────────────
 
-# ── App ───────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_storage()
     _load_ai_model()
     if _ai_ready:
-        _run_inference()
+        _run_inference()  # first result immediately
         t = threading.Thread(target=_inference_loop, args=(30,), daemon=True)
         t.start()
         log.info("AI inference loop started (every 30 min)")
@@ -413,9 +331,18 @@ async def lifespan(app: FastAPI):
     yield
     log.info("Farm Dashboard Backend shutting down")
 
-app = FastAPI(title="Farm Dashboard Backend", version="4.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Farm Dashboard Backend",
+    version="3.0.0",
+    description="Agrivoltaic farm management + BiLSTM AI forecast API",
+    lifespan=lifespan,
+)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# ── auth router ───────────────────────────────────────────────────────────────
+from auth import router as auth_router
+app.include_router(auth_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -423,87 +350,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
-# ── Auth endpoints ────────────────────────────────────────────────────────────
-@app.post("/auth/register", status_code=201)
-async def register(body: RegisterBody):
-    """Register a new user with email and password via Supabase Auth."""
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{SUPABASE_AUTH_URL}/signup",
-            headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
-            json={"email": body.email, "password": body.password}
-        )
-    data = r.json()
-    if r.status_code not in (200, 201) or "error" in data:
-        msg = data.get("error_description") or data.get("msg") or "Registration failed"
-        raise HTTPException(400, msg)
-    return {"message": "Registration successful. Please check your email to confirm your account."}
+# ── base routes ───────────────────────────────────────────────────────────────
 
-@app.post("/auth/login")
-async def login(body: LoginBody):
-    """Login with email and password. Returns access token."""
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{SUPABASE_AUTH_URL}/token?grant_type=password",
-            headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
-            json={"email": body.email, "password": body.password}
-        )
-    data = r.json()
-    if r.status_code != 200 or "access_token" not in data:
-        msg = data.get("error_description") or data.get("msg") or "Invalid email or password"
-        raise HTTPException(401, msg)
-    return {
-        "access_token": data["access_token"],
-        "refresh_token": data.get("refresh_token", ""),
-        "user": {"id": data["user"]["id"], "email": data["user"]["email"]},
-    }
-
-@app.post("/auth/logout")
-async def logout(user=Depends(get_current_user)):
-    """Logout current user."""
-    return {"message": "Logged out successfully"}
-
-@app.get("/auth/me")
-async def me(user=Depends(get_current_user)):
-    """Get current user info."""
-    return {"id": user["id"], "email": user["email"]}
-
-
-# ── User-specific endpoints ───────────────────────────────────────────────────
-@app.get("/user/settings")
-async def get_my_settings(user=Depends(get_current_user)):
-    """Get this user's crop and alpha settings."""
-    return await get_user_settings(user["id"])
-
-@app.post("/user/settings")
-async def save_my_settings(body: UserCropBody, user=Depends(get_current_user)):
-    """Save this user's crop and alpha settings."""
-    global _alpha, _dli
-    if _dli and body.crop in (_CROP_THRESHOLDS or {}):
-        _dli.set_crop(body.crop)
-    _alpha = body.alpha
-    ok = await upsert_user_settings(user["id"], {"crop": body.crop, "alpha": body.alpha})
-    return {"saved": ok, "crop": body.crop, "alpha": body.alpha}
-
-@app.get("/user/history")
-async def get_my_history(user=Depends(get_current_user)):
-    """Get this user's personal inference history (last 48 records)."""
-    records = await get_user_history(user["id"])
-    return {"records": records}
-
-@app.get("/user/dli")
-async def get_my_dli(user=Depends(get_current_user)):
-    """Get this user's DLI state."""
-    state = await get_user_dli_state(user["id"])
-    if state:
-        return state
-    return {"accumulated": 0.0, "date": datetime.now().strftime("%Y-%m-%d"), "crop": "lettuce"}
-
-
-# ── Base routes ───────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
-    return {"service": "Farm Dashboard Backend", "version": "4.0.0", "ai_ready": _ai_ready}
+    return {
+        "service": "Farm Dashboard Backend",
+        "version": "3.0.0",
+        "ai_ready": _ai_ready,
+        "ai_error": _ai_error if not _ai_ready else None,
+    }
 
 @app.get("/health")
 @app.head("/health")
@@ -511,57 +367,182 @@ def health():
     return {"ok": True, "timestamp": now_iso(), "ai_ready": _ai_ready}
 
 
+# ── locations ─────────────────────────────────────────────────────────────────
+
+@app.get("/locations")
+def list_locations():
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    return {"locations": settings.get("locations", {}),
+            "default_location": settings.get("default_location", "")}
+
+@app.put("/locations/{name}")
+def upsert_location(name: str, loc: LocationModel):
+    name = name.strip()
+    if not name: raise HTTPException(422, "Location name cannot be empty")
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    settings.setdefault("locations", {})[name] = loc.model_dump()
+    if not settings.get("default_location"): settings["default_location"] = name
+    save_json(SETTINGS_PATH, settings)
+    return {"saved": True, "name": name}
+
+@app.delete("/locations/{name}")
+def delete_location(name: str):
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    locations = settings.get("locations", {})
+    if name not in locations: raise HTTPException(404, "Location not found")
+    locations.pop(name)
+    settings["locations"] = locations
+    if settings.get("default_location") == name:
+        settings["default_location"] = next(iter(locations), "")
+    save_json(SETTINGS_PATH, settings)
+    return {"deleted": True}
+
+@app.put("/default_location/{name}")
+def set_default_location(name: str):
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    if name not in settings.get("locations", {}): raise HTTPException(404, "Location not found")
+    settings["default_location"] = name
+    save_json(SETTINGS_PATH, settings)
+    return {"saved": True}
+
+
+# ── kpis ──────────────────────────────────────────────────────────────────────
+
+@app.get("/kpis")
+def get_kpis():
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    return settings.get("kpis", DEFAULT_SETTINGS["kpis"])
+
+@app.put("/kpis")
+def put_kpis(kpis: KpiModel):
+    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+    settings["kpis"] = kpis.model_dump()
+    save_json(SETTINGS_PATH, settings)
+    return {"saved": True}
+
+
+# ── alerts ────────────────────────────────────────────────────────────────────
+
+@app.get("/alerts")
+def get_alerts():
+    return load_json(ALERTS_PATH, DEFAULT_ALERTS)
+
+@app.post("/alerts", status_code=201)
+def add_alert(alert: AlertIn):
+    data = load_json(ALERTS_PATH, DEFAULT_ALERTS)
+    items: List[Dict[str, Any]] = data.get("items", [])
+    record = {"id": str(uuid.uuid4()), "type": alert.type,
+              "message": alert.message, "created_at": now_iso()}
+    items.insert(0, record)
+    data["items"] = items[:MAX_ITEMS]
+    save_json(ALERTS_PATH, data)
+    return {"saved": True, "id": record["id"], "count": len(data["items"])}
+
+@app.delete("/alerts/{alert_id}")
+def remove_alert(alert_id: str):
+    data = load_json(ALERTS_PATH, DEFAULT_ALERTS)
+    items = data.get("items", [])
+    new_items = [a for a in items if a.get("id") != alert_id]
+    if len(new_items) == len(items): raise HTTPException(404, "Alert not found")
+    data["items"] = new_items
+    save_json(ALERTS_PATH, data)
+    return {"deleted": True, "count": len(new_items)}
+
+
+# ── updates ───────────────────────────────────────────────────────────────────
+
+@app.get("/updates")
+def get_updates():
+    return load_json(UPDATES_PATH, DEFAULT_UPDATES)
+
+@app.post("/updates", status_code=201)
+def add_update(update: UpdateIn):
+    data = load_json(UPDATES_PATH, DEFAULT_UPDATES)
+    items: List[Dict[str, Any]] = data.get("items", [])
+    record = {"id": str(uuid.uuid4()), "title": update.title,
+              "body": update.body, "created_at": now_iso()}
+    items.insert(0, record)
+    data["items"] = items[:MAX_ITEMS]
+    save_json(UPDATES_PATH, data)
+    return {"saved": True, "id": record["id"], "count": len(data["items"])}
+
+@app.delete("/updates/{update_id}")
+def remove_update(update_id: str):
+    data = load_json(UPDATES_PATH, DEFAULT_UPDATES)
+    items = data.get("items", [])
+    new_items = [u for u in items if u.get("id") != update_id]
+    if len(new_items) == len(items): raise HTTPException(404, "Update not found")
+    data["items"] = new_items
+    save_json(UPDATES_PATH, data)
+    return {"deleted": True, "count": len(new_items)}
+
+
 # ── AI forecast endpoints ─────────────────────────────────────────────────────
+
 def _require_ai():
     if not _ai_ready:
         raise HTTPException(503, f"AI model not loaded: {_ai_error}")
 
 @app.get("/forecast")
 def get_forecast():
+    """Latest BiLSTM prediction — all 5 dashboard panels. Refreshes every 30 min."""
     _require_ai()
     with _lock:
         p = dict(_payload)
     if not p:
-        raise HTTPException(503, "Model warming up - retry in 5 seconds")
+        raise HTTPException(503, "Model warming up — retry in 5 seconds")
     return p
 
 @app.get("/ai/status")
 def ai_status():
+    """Check if the AI model is loaded and working."""
     crop = _dli.crop if _dli else "lettuce"
     threshold = _CROP_THRESHOLDS.get(crop, 14.0) if _CROP_THRESHOLDS else 14.0
     return {"ai_ready": _ai_ready, "ai_error": _ai_error if not _ai_ready else None,
             "has_forecast": bool(_payload), "alpha": _alpha,
             "crop": crop, "dli_threshold": threshold}
 
+@app.get("/dli/status")
+def dli_status():
+    """Current DLI accumulator state."""
+    _require_ai()
+    return _dli.get_status()
+
 @app.get("/treatment/compare")
 def treatment_compare(alpha: float = 0.7):
+    """Live Fixed-tilt vs Vertical comparison with custom alpha."""
     _require_ai()
-    if not 0 <= alpha <= 1: raise HTTPException(400, "alpha must be 0.0-1.0")
+    if not 0 <= alpha <= 1: raise HTTPException(400, "alpha must be 0.0–1.0")
     return _compare_treatments(_get_sensor_window(), alpha=alpha)
 
 @app.post("/treatment/alpha")
 def set_alpha(body: AlphaBody):
+    """Change crop vs energy priority (0=energy only, 1=crop only, default 0.7)."""
     global _alpha
     _require_ai()
-    if not 0 <= body.alpha <= 1: raise HTTPException(400, "alpha must be 0.0-1.0")
+    if not 0 <= body.alpha <= 1: raise HTTPException(400, "alpha must be 0.0–1.0")
     _alpha = body.alpha
-    return {"alpha": _alpha}
+    return {"alpha": _alpha,
+            "meaning": f"Crop {int(_alpha*100)}%  Energy {int((1-_alpha)*100)}%"}
 
 @app.post("/crop/{name}")
 def set_crop(name: str):
+    """Change active crop — adjusts DLI threshold immediately."""
     _require_ai()
     if name not in _CROP_THRESHOLDS:
         raise HTTPException(400, f"Options: {list(_CROP_THRESHOLDS.keys())}")
     _dli.set_crop(name)
-    return {"crop": name, "threshold": f"{_CROP_THRESHOLDS[name]} mol/m2/day"}
+    return {"crop": name, "threshold": f"{_CROP_THRESHOLDS[name]} mol/m²/day"}
 
 @app.get("/history")
 def get_history():
+    """Last 48 forecast records (24 hours) for history charts."""
     hist = load_json(HISTORY_PATH, {"records": []})
     return hist
 
 @app.websocket("/live")
 async def ws_live(ws: WebSocket):
+    """WebSocket push — receive every new prediction automatically."""
     await ws.accept()
     _ws_list.append(ws)
     with _lock:
@@ -579,34 +560,8 @@ async def ws_live(ws: WebSocket):
         if ws in _ws_list:
             _ws_list.remove(ws)
 
-# ── Locations, alerts, updates (unchanged) ────────────────────────────────────
-@app.get("/locations")
-def list_locations():
-    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
-    return {"locations": settings.get("locations", {}), "default_location": settings.get("default_location", "")}
 
-@app.put("/locations/{name}")
-def upsert_location(name: str, loc: LocationModel):
-    name = name.strip()
-    if not name: raise HTTPException(422, "Location name cannot be empty")
-    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
-    settings.setdefault("locations", {})[name] = loc.model_dump()
-    if not settings.get("default_location"): settings["default_location"] = name
-    save_json(SETTINGS_PATH, settings)
-    return {"saved": True, "name": name}
-
-@app.get("/kpis")
-def get_kpis():
-    settings = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
-    return settings.get("kpis", DEFAULT_SETTINGS["kpis"])
-
-@app.get("/alerts")
-def get_alerts():
-    return load_json(ALERTS_PATH, DEFAULT_ALERTS)
-
-@app.get("/updates")
-def get_updates():
-    return load_json(UPDATES_PATH, DEFAULT_UPDATES)
+# ── entrypoint ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn
