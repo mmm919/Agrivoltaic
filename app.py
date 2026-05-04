@@ -409,22 +409,14 @@ def page_forecast():
 # ── PAGE 3: DLI ───────────────────────────────────────────────────────────────
 def page_dli():
     header("🌞 Daily Light Integral", "Crop light budget tracking and recommendations")
-    d, err = fetch_forecast()
-    if err: show_err(err); return
-    # Sync crop from backend so it matches AI Forecast page
-    try:
-        ai = api_get("/ai/status", timeout=5)
-        d["crop"] = ai.get("crop", d.get("crop","lettuce"))
-    except: pass
-    run_status_bar(d)
 
-    crop      = d.get("crop","tomato").capitalize()
-    # ── June 8 demo values ────────────────────────────────────────────────────
-    dli_acc   = 14.2   # collected so far (noon on a sunny day)
-    dli_proj  = 24.1   # projected end of day
-    dli_thresh= 25.0   # tomato target
-    dli_pct   = round(dli_acc / dli_thresh * 100, 1)   # 56.8%
-    dli_def   = max(0, dli_thresh - dli_proj)           # 0.9 mol deficit
+    # ── June 8 demo hardcoded values ─────────────────────────────────────────
+    crop      = "Tomato"
+    dli_acc   = 14.2
+    dli_proj  = 24.1
+    dli_thresh= 25.0
+    dli_pct   = round(dli_acc / dli_thresh * 100, 1)
+    dli_def   = max(0.0, dli_thresh - dli_proj)
     stressed  = dli_proj < dli_thresh
     msg       = (f"Crop light stress detected. Projected DLI {dli_proj:.1f} mol/m² "
                  f"is below {crop} target {dli_thresh:.0f} mol/m²/day "
