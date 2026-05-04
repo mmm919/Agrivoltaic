@@ -220,61 +220,23 @@ def _cloud_to_ghi(cloud_pct: float, hour: float) -> float:
     return clear_sky * clear_factor
 
 def _get_sensor_window() -> "pd.DataFrame":
-    """Build sensor window — uses demo CSV if demo mode is on, else live OWM data."""
-    if _is_demo_mode() and DEMO_CSV_PATH.exists():
+    """Always use demo CSV dataset (June 8 2023 - best sunny day)."""
+    if DEMO_CSV_PATH.exists():
         return _get_demo_window()
-    now = datetime.utcnow()
-    beirut_hour = (now.hour + 3) % 24  # UTC+3
-
-    # Try to fetch real weather data
-    try:
-        wx = _fetch_owm_data()
-        clouds    = wx.get("clouds", {}).get("all", 50)       # cloud cover %
-        temp_c    = wx.get("main", {}).get("temp", 22.0)      # air temp °C
-        humidity  = wx.get("main", {}).get("humidity", 60)    # humidity %
-        wind_spd  = wx.get("wind", {}).get("speed", 3.0)      # wind m/s
-        # OWM free tier doesn't give direct GHI — derive from clouds
-        current_ghi = _cloud_to_ghi(clouds, beirut_hour)
-        log.info("[OWM] Beirut: clouds=%d%% temp=%.1f°C GHI_est=%.0fW/m²",
-                 clouds, temp_c, current_ghi)
-        use_real = True
-    except Exception as e:
-        log.warning("[OWM] Failed to fetch weather: %s — falling back to synthetic", e)
-        clouds = 30; temp_c = 22.0; current_ghi = _cloud_to_ghi(30, beirut_hour)
-        use_real = False
-
-    # Build 24-step window (last 2 hours at 5-min intervals)
-    n = 24
-    # Each step is 5 min back from now
-    hours = [(beirut_hour * 60 + now.minute - (n - 1 - i) * 5) / 60 % 24
-             for i in range(n)]
-
-    np.random.seed(int(now.timestamp()) % 999)
-    noise_scale = 15 if use_real else 25
-
-    ghi = []
-    for i, h in enumerate(hours):
-        base = _cloud_to_ghi(clouds, h)
-        # Most recent value uses actual current conditions
-        if i == n - 1:
-            val = current_ghi + np.random.normal(0, noise_scale * 0.3)
-        else:
-            val = base + np.random.normal(0, noise_scale)
-        ghi.append(max(0.0, val))
-
-    dhi  = [max(0.0, g * (0.15 + clouds/100*0.1) + np.random.normal(0, 5)) for g in ghi]
-    par  = [max(0.0, g * 1.8 + np.random.normal(0, 20)) for g in ghi]
-    alb  = [max(0.0, g * 0.12) for g in ghi]
-    temp = [max(5.0, temp_c - (ghi[-1] - g) / 200 + np.random.normal(0, 0.3)) for g in ghi]
-
+    # Fallback synthetic if demo file missing
+    log.warning("[SENSOR] demo_window.json not found - using synthetic fallback")
+    ghi = [820.0 + np.random.normal(0, 10) for _ in range(24)]
+    dhi = [g * 0.18 for g in ghi]
+    par = [g * 1.85 + np.random.normal(0, 15) for g in ghi]
+    alb = [g * 0.12 for g in ghi]
+    temp = [28.0 + np.random.normal(0, 0.5) for _ in range(24)]
+    hours = [(11.0 + i * 5/60) for i in range(24)]
     df = pd.DataFrame({
-        "GHI (W.m-2)":        ghi,
-        "DHI_SPN1 (W.m-2)":   dhi,
-        "PAR (umol.s-1.m-2)": par,
-        "Albedometer (W.m-2)": alb,
-        "airtemp_underpanel":  temp,
-        "sin_hour": [np.sin(2 * np.pi * h / 24) for h in hours],
-        "cos_hour": [np.cos(2 * np.pi * h / 24) for h in hours],
+        "GHI (W.m-2)": ghi, "DHI_SPN1 (W.m-2)": dhi,
+        "PAR (umol.s-1.m-2)": par, "Albedometer (W.m-2)": alb,
+        "airtemp_underpanel": temp,
+        "sin_hour": [np.sin(2*np.pi*h/24) for h in hours],
+        "cos_hour": [np.cos(2*np.pi*h/24) for h in hours],
     })
     df["GHI (W.m-2)_lag1"]         = df["GHI (W.m-2)"].shift(1).bfill()
     df["GHI (W.m-2)_lag2"]         = df["GHI (W.m-2)"].shift(2).bfill()
@@ -374,6 +336,27 @@ class AlphaBody(BaseModel):
 async def lifespan(app: FastAPI):
     ensure_storage()
     _load_ai_model()
+
+    # ── Pre-fill history and DLI from demo data on every startup ──────────────
+    HISTORY_PREFILL = BASE_DIR / "storage" / "history_prefill.json"
+    if HISTORY_PREFILL.exists():
+        try:
+            prefill = load_json(HISTORY_PREFILL, {"records": []})
+            existing = load_json(HISTORY_PATH, {"records": []})
+            # Only prefill if history is empty or has fewer than 10 records
+            if len(existing.get("records", [])) < 10:
+                save_json(HISTORY_PATH, prefill)
+                log.info("[STARTUP] Pre-filled history with %d demo records",
+                         len(prefill.get("records", [])))
+            # Seed DLI from last record
+            records = prefill.get("records", [])
+            if records and _dli is not None:
+                last = records[-1]
+                _dli.accumulated = float(last.get("dli_accumulated", 12.0))
+                log.info("[STARTUP] Seeded DLI to %.2f mol/m²", _dli.accumulated)
+        except Exception as e:
+            log.warning("[STARTUP] Could not prefill history: %s", e)
+
     if _ai_ready:
         _run_inference()  # first result immediately
         t = threading.Thread(target=_inference_loop, args=(30,), daemon=True)
@@ -596,12 +579,15 @@ def toggle_demo():
     save_json(SETTINGS_PATH, s)
     mode = "ON" if s["demo_mode"] else "OFF"
 
-    # When turning demo ON, pre-seed DLI to a realistic noon value
-    # June 8 noon — approximately 8 cycles of ~3.0 mol/m² each = ~24 mol already accumulated
     if s["demo_mode"] and _dli is not None:
-        _dli.accumulated = 12.0   # pre-seed to ~50% of tomato target (25 mol)
-        log.info("[DEMO] Pre-seeded DLI to %.1f mol/m²", _dli.accumulated)
+        # Pre-seed DLI to realistic noon value
+        _dli.accumulated = 12.0
         _demo_cursor = 0
+        log.info("[DEMO] Pre-seeded DLI to %.1f mol/m²", _dli.accumulated)
+        # Trigger immediate inference so payload updates right away
+        import threading
+        t = threading.Thread(target=_run_inference, daemon=True)
+        t.start()
 
     log.info("[DEMO] Demo mode turned %s", mode)
     return {"demo_mode": s["demo_mode"], "message": f"Demo mode {mode}"}
