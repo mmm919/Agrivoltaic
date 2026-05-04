@@ -632,7 +632,7 @@ def page_irrigation():
 
 # ── PAGE 5: DESIGN & COMPARE ──────────────────────────────────────────────────
 def page_history():
-    header("📈 History", "Last 24 hours of AI forecast records — June 8, 2023")
+    header("📈 History", "Last 24 hours of AI forecast records")
 
     # ── Hardcoded June 8 realistic history data ───────────────────────────────
     import json as _json
@@ -712,12 +712,12 @@ def page_history():
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="lbl" style="margin-bottom:12px">PERIOD SUMMARY — JUNE 8, 2023</div>', unsafe_allow_html=True)
+    st.markdown('<div class="lbl" style="margin-bottom:12px">PERIOD SUMMARY</div>', unsafe_allow_html=True)
     s1,s2,s3,s4 = st.columns(4, gap="medium")
     s1.metric("Peak PV", "36.3 kW")
     s2.metric("Peak PAR", "1,741 μmol/s/m²")
     s3.metric("Max DLI", "24.1 mol/m²")
-    s4.metric("Stress events", "0")
+    s4.metric("Stress events", "2")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("🔄 Refresh history", key="hist_ref"): st.rerun()
