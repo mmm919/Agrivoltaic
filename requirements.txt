@@ -10,3 +10,4 @@ requests
 torch
 scikit-learn
 joblib
+httpx
