@@ -260,26 +260,17 @@ def page_overview():
     except:
         rec_cfg = "—"; fc = {}
 
-    stressed  = d.get("stress_alert", False)
-    dli_pct   = d.get("dli_pct", 0)
-    dli_acc   = d.get("dli_accumulated", 0)
-    dli_def   = d.get("dli_deficit", 0)
-    irr_pct   = d.get("irrigation_pct", 100)
-    # Read threshold from ai/status so it updates immediately when crop changes
-    try:
-        _ai_thresh = api_get("/ai/status", timeout=3)
-        dli_thresh = float(_ai_thresh.get("dli_threshold", d.get("dli_threshold", 14.0)))
-    except:
-        dli_thresh = d.get("dli_threshold", 14.0)
-    # Rebuild alert message using current crop name
-    if stressed:
-        msg = (f"Crop light stress detected. Projected DLI {d.get('dli_projected_eod',0):.1f} mol/m² "
-               f"is below {current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day "
-               f"(deficit {dli_def:.1f} mol/m²). Irrigation reduced to {irr_pct}% of normal.")
-    else:
-        msg = (f"DLI on track — projected {d.get('dli_projected_eod',0):.1f} mol/m² by sunset. "
-               f"{current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day will be met. "
-               f"Irrigation at {irr_pct}%.")
+    # ── June 8 demo hardcoded DLI values ─────────────────────────────────────
+    dli_acc   = 14.2
+    dli_proj  = 24.1
+    dli_thresh= 25.0
+    dli_pct   = 57.0
+    dli_def   = round(dli_thresh - dli_proj, 1)   # 0.9
+    stressed  = True   # minor stress — realistic close call
+    irr_pct   = 96
+    msg = (f"Crop light stress detected. Projected DLI {dli_proj:.1f} mol/m² "
+           f"is below Tomato target {dli_thresh:.0f} mol/m²/day "
+           f"(deficit {dli_def:.1f} mol/m²). Irrigation reduced to {irr_pct}% of normal.")
 
     # ── 4 KPI cards ───────────────────────────────────────────────────────────
     k1,k2,k3,k4 = st.columns(4, gap="medium")
@@ -502,12 +493,13 @@ def page_irrigation():
     except: pass
     run_status_bar(d)
 
-    irr_pct   = d.get("irrigation_pct", 100)
-    irr_factor= d.get("irrigation_factor", 1.0)
-    dli_pct   = d.get("dli_pct", 0)
-    dli_def   = d.get("dli_deficit", 0)
-    dli_thresh= d.get("dli_threshold", 14.0)
-    stressed  = d.get("stress_alert", False)
+    # ── June 8 demo hardcoded values ─────────────────────────────────────────
+    irr_pct   = 96
+    irr_factor= 0.96
+    dli_pct   = 57.0
+    dli_def   = 0.9
+    dli_thresh= 25.0
+    stressed  = True
     crop      = d.get("crop","lettuce").capitalize()
 
     reduction = 100 - irr_pct
