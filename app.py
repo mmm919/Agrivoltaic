@@ -261,6 +261,22 @@ def show_sidebar():
                 st.session_state.pop(key, None)
             st.rerun()
 
+def show_topbar():
+    email = get_user_email()
+    col1, col2 = st.columns([0.85, 0.15])
+    with col2:
+        if st.button("🚪 Sign Out", use_container_width=True, key="topbar_signout"):
+            for key in ["access_token","refresh_token","user_id","user_email","user_crop","user_alpha"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+    with col1:
+        st.markdown(
+            f'''<div style="padding:6px 0;font-size:12px;color:rgba(255,255,255,0.4)">
+            👤 Signed in as <span style="color:rgba(255,255,255,0.7);font-weight:600">{email}</span>
+            </div>''',
+            unsafe_allow_html=True
+        )
+
 
 # ── PAGE 1: OVERVIEW ──────────────────────────────────────────────────────────
 def page_overview():
@@ -729,6 +745,7 @@ def main():
         return
 
     show_sidebar()
+    show_topbar()
     tabs = st.tabs(["Overview","AI Forecast","DLI","Irrigation","Design & Compare","History"])
     with tabs[0]: page_overview()
     with tabs[1]: page_forecast()
