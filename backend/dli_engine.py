@@ -41,7 +41,7 @@ class DLIEngine:
 
     Every 30 minutes:
       1. Receives the 12 PAR forecast values from the BiLSTM
-      2. Converts mean PAR to a mol/m² deposit  →  PAR × 300s × 1e-6
+      2. Converts mean PAR to a mol/m² deposit  →  PAR × 1800s × 1e-6
       3. Adds deposit to today's running total
       4. Projects end-of-day total from current rate
       5. If projected total < crop threshold  →  stress = True
