@@ -128,22 +128,14 @@ def _load_ai_model():
         _compare_treatments = compare_treatments
         _CROP_THRESHOLDS    = CROP_THRESHOLDS
         _dli = DLIEngine(crop="tomato")
-        # Restore DLI from previous session if same day
+        # Always seed to demo value — clear any saved state
+        _dli.accumulated = 14.0
         try:
-            dli_state = load_json(DLI_STATE_PATH, {})
-            today = datetime.now().strftime("%Y-%m-%d")
-            if dli_state.get("date") == today and dli_state.get("accumulated", 0) > 0:
-                _dli.accumulated = float(dli_state["accumulated"])
-                saved_crop = dli_state.get("crop", "tomato")
-                _dli.set_crop(saved_crop)
-                log.info("Restored DLI: %.2f mol/m² for %s", _dli.accumulated, saved_crop)
-            else:
-                # Fresh start — seed to realistic noon value for demo
-                _dli.accumulated = 14.0
-                log.info("[STARTUP] No saved DLI state — seeded to %.2f mol/m²", _dli.accumulated)
+            # Wipe saved DLI state so it doesn't override our seed
+            save_json(DLI_STATE_PATH, {})
+            log.info("[STARTUP] DLI seeded to 14.0 mol/m² (demo mode)")
         except Exception as re:
-            _dli.accumulated = 14.0
-            log.warning("DLI restore failed: %s — seeded to 14.0", re)
+            log.warning("DLI state clear failed: %s", re)
         _ai_ready = True
         log.info("AI model loaded successfully — BiLSTM PV R²=0.9085 PAR R²=0.8926")
     except Exception as e:
