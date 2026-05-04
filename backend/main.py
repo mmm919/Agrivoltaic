@@ -127,18 +127,23 @@ def _load_ai_model():
         _get_full_payload   = get_full_payload
         _compare_treatments = compare_treatments
         _CROP_THRESHOLDS    = CROP_THRESHOLDS
-        _dli = DLIEngine(crop="lettuce")
+        _dli = DLIEngine(crop="tomato")
         # Restore DLI from previous session if same day
         try:
             dli_state = load_json(DLI_STATE_PATH, {})
             today = datetime.now().strftime("%Y-%m-%d")
             if dli_state.get("date") == today and dli_state.get("accumulated", 0) > 0:
                 _dli.accumulated = float(dli_state["accumulated"])
-                saved_crop = dli_state.get("crop", "lettuce")
+                saved_crop = dli_state.get("crop", "tomato")
                 _dli.set_crop(saved_crop)
                 log.info("Restored DLI: %.2f mol/m² for %s", _dli.accumulated, saved_crop)
+            else:
+                # Fresh start — seed to realistic noon value for demo
+                _dli.accumulated = 14.0
+                log.info("[STARTUP] No saved DLI state — seeded to %.2f mol/m²", _dli.accumulated)
         except Exception as re:
-            log.warning("DLI restore failed: %s", re)
+            _dli.accumulated = 14.0
+            log.warning("DLI restore failed: %s — seeded to 14.0", re)
         _ai_ready = True
         log.info("AI model loaded successfully — BiLSTM PV R²=0.9085 PAR R²=0.8926")
     except Exception as e:
@@ -337,23 +342,26 @@ async def lifespan(app: FastAPI):
     ensure_storage()
     _load_ai_model()
 
-    # ── Pre-fill history and DLI from demo data on every startup ──────────────
+    # ── Pre-fill history from demo data on every startup ──────────────────────
     HISTORY_PREFILL = BASE_DIR / "storage" / "history_prefill.json"
     if HISTORY_PREFILL.exists():
         try:
             prefill = load_json(HISTORY_PREFILL, {"records": []})
             existing = load_json(HISTORY_PATH, {"records": []})
-            # Only prefill if history is empty or has fewer than 10 records
             if len(existing.get("records", [])) < 10:
                 save_json(HISTORY_PATH, prefill)
                 log.info("[STARTUP] Pre-filled history with %d demo records",
                          len(prefill.get("records", [])))
-            # Seed DLI from last record
+            # Seed DLI — _dli is guaranteed to exist after _load_ai_model()
             records = prefill.get("records", [])
             if records and _dli is not None:
-                last = records[-1]
-                _dli.accumulated = float(last.get("dli_accumulated", 12.0))
+                _dli.accumulated = 14.0   # ~56% of tomato target — realistic noon value
                 log.info("[STARTUP] Seeded DLI to %.2f mol/m²", _dli.accumulated)
+            elif records:
+                # _dli still None (model failed) — store seed in settings for later
+                s = load_json(SETTINGS_PATH, {})
+                s["dli_seed"] = 14.0
+                save_json(SETTINGS_PATH, s)
         except Exception as e:
             log.warning("[STARTUP] Could not prefill history: %s", e)
 
