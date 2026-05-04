@@ -55,12 +55,6 @@ header[data-testid="stHeader"],div[data-testid="stToolbar"],#MainMenu,footer{dis
 div[data-testid="stMetric"]{background:var(--surface2)!important;border:1px solid var(--border)!important;border-radius:10px!important;padding:12px 16px!important;}
 div[data-testid="stMetricValue"]{color:var(--text)!important;}
 div[data-testid="stMetricLabel"]{color:var(--muted)!important;}
-/* Auth page styles */
-.auth-container{max-width:420px;margin:60px auto 0 auto;}
-.auth-logo{text-align:center;margin-bottom:32px;}
-.auth-title{font-size:28px;font-weight:700;color:var(--text);text-align:center;margin-bottom:4px;}
-.auth-sub{font-size:14px;color:var(--muted);text-align:center;margin-bottom:28px;}
-.auth-footer{font-size:12px;color:var(--muted2);text-align:center;margin-top:20px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,112 +66,14 @@ DARK = dict(
     margin=dict(l=8,r=8,t=8,b=8),
 )
 
-# ── Auth helpers ──────────────────────────────────────────────────────────────
-def api_get(path, timeout=12, token=None):
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    r = requests.get(f"{BACKEND_URL}{path}", headers=headers, timeout=timeout)
-    r.raise_for_status()
-    return r.json()
+def api_get(path, timeout=12):
+    r = requests.get(f"{BACKEND_URL}{path}", timeout=timeout)
+    r.raise_for_status(); return r.json()
 
-def api_post(path, payload=None, timeout=10, token=None):
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    r = requests.post(f"{BACKEND_URL}{path}", json=payload or {}, headers=headers, timeout=timeout)
-    r.raise_for_status()
-    return r.json()
+def api_post(path, payload=None, timeout=10):
+    r = requests.post(f"{BACKEND_URL}{path}", json=payload or {}, timeout=timeout)
+    r.raise_for_status(); return r.json()
 
-def get_token():
-    return st.session_state.get("access_token", None)
-
-def is_logged_in():
-    return bool(st.session_state.get("access_token"))
-
-def get_user_email():
-    return st.session_state.get("user_email", "")
-
-# ── Auth page ─────────────────────────────────────────────────────────────────
-def page_auth():
-    st.markdown('<div class="auth-container">', unsafe_allow_html=True)
-    st.markdown('''
-    <div class="auth-logo">
-      <div style="font-size:40px">🌱</div>
-      <div class="auth-title">AgroVision AI</div>
-      <div class="auth-sub">Agrivoltaic Farm Intelligence System</div>
-    </div>
-    ''', unsafe_allow_html=True)
-
-    tab_login, tab_signup = st.tabs(["Sign In", "Sign Up"])
-
-    with tab_login:
-        st.markdown("<br>", unsafe_allow_html=True)
-        email = st.text_input("Email address", key="login_email", placeholder="you@example.com")
-        password = st.text_input("Password", type="password", key="login_password", placeholder="••••••••")
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Sign In", use_container_width=True, key="login_btn"):
-            if not email or not password:
-                st.error("Please enter your email and password.")
-            else:
-                with st.spinner("Signing in..."):
-                    try:
-                        resp = api_post("/auth/login", {"email": email, "password": password})
-                        st.session_state["access_token"] = resp["access_token"]
-                        st.session_state["refresh_token"] = resp.get("refresh_token", "")
-                        st.session_state["user_id"] = resp["user"]["id"]
-                        st.session_state["user_email"] = resp["user"]["email"]
-                        # Load user settings
-                        try:
-                            settings = api_get("/user/settings", token=resp["access_token"])
-                            st.session_state["user_crop"] = settings.get("crop", "lettuce")
-                            st.session_state["user_alpha"] = float(settings.get("alpha", 0.7))
-                        except:
-                            st.session_state["user_crop"] = "lettuce"
-                            st.session_state["user_alpha"] = 0.7
-                        st.success("Welcome back!")
-                        st.rerun()
-                    except requests.HTTPError as e:
-                        try:
-                            msg = e.response.json().get("detail", "Invalid email or password.")
-                        except:
-                            msg = "Invalid email or password."
-                        st.error(msg)
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-
-    with tab_signup:
-        st.markdown("<br>", unsafe_allow_html=True)
-        new_email = st.text_input("Email address", key="signup_email", placeholder="you@example.com")
-        new_pass  = st.text_input("Password", type="password", key="signup_password", placeholder="At least 6 characters")
-        new_pass2 = st.text_input("Confirm password", type="password", key="signup_password2", placeholder="Repeat password")
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Create Account", use_container_width=True, key="signup_btn"):
-            if not new_email or not new_pass:
-                st.error("Please fill in all fields.")
-            elif new_pass != new_pass2:
-                st.error("Passwords do not match.")
-            elif len(new_pass) < 6:
-                st.error("Password must be at least 6 characters.")
-            else:
-                with st.spinner("Creating your account..."):
-                    try:
-                        api_post("/auth/register", {"email": new_email, "password": new_pass})
-                        st.success("Account created! Please check your email to confirm, then sign in.")
-                    except requests.HTTPError as e:
-                        try:
-                            msg = e.response.json().get("detail", "Registration failed.")
-                        except:
-                            msg = "Registration failed."
-                        st.error(msg)
-                    except Exception as e:
-                        st.error(f"Connection error: {e}")
-
-    st.markdown('<div class="auth-footer">AgroVision AI &mdash; EECE 502 FYP &mdash; AUB MSFEA</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ── Utility functions ─────────────────────────────────────────────────────────
 def clamp(x,lo,hi): return max(lo,min(hi,x))
 def soil_factor(s): return {"Dry":0.0,"Medium":0.5,"Wet":1.0}.get(s,0.5)
 
@@ -195,9 +91,21 @@ def simulate_scenario(p):
     return {"pv_performance":clamp(65.0+pv,0.0,100.0),"crop_comfort":cs,"water_savings_kpi":clamp(ws*2.0,0.0,100.0),
             "leaf_cooling_c":lc,"pv_gain_percent":pv,"water_savings_percent":ws,"heat_index_reduction_c":hi,"comfort_score":cs}
 
+def fetch_live(alpha=0.7):
+    try:
+        comp = api_get(f"/treatment/compare?alpha={alpha}", timeout=15)
+        comp["recommended_config"] = comp.get("recommended_config","—").replace("Fixedtilt","Fixed-tilt")
+        d, _ = fetch_forecast()
+        return comp, d or {}, None
+    except requests.exceptions.HTTPError as e:
+        if e.response and e.response.status_code == 503: return None, {}, "warming_up"
+        return None, {}, str(e)
+    except Exception as e:
+        return None, {}, str(e)
+
 def fetch_forecast():
     try:
-        d = api_get("/forecast", timeout=15, token=get_token())
+        d = api_get("/forecast", timeout=15)
         return d, None
     except requests.exceptions.HTTPError as e:
         if e.response and e.response.status_code == 503: return None, "warming_up"
@@ -206,37 +114,44 @@ def fetch_forecast():
         return None, str(e)
 
 def show_err(err):
-    if err == "warming_up": st.warning("AI model warming up - refresh in ~30 seconds.")
+    if err == "warming_up": st.warning("⏳ AI model warming up — refresh in ~30 seconds.")
     else: st.error("Backend not reachable."); st.caption(str(err))
 
 def pbar(pct, color): return f'<div class="pt-track"><div class="pt-fill" style="width:{min(pct,100):.0f}%;background:{color}"></div></div>'
 
 def run_status_bar(d):
+    """Show last run timestamp and next run countdown."""
     ts = d.get("timestamp","")
-    if not ts: return
+    if not ts:
+        return
     try:
         from datetime import datetime, timedelta
+        # Convert to Beirut time (UTC+3)
         last_utc = datetime.fromisoformat(ts)
         beirut_offset = timedelta(hours=3)
         last_beirut = last_utc + beirut_offset
         now_beirut  = datetime.utcnow() + beirut_offset
         mins_ago = int((now_beirut - last_beirut).total_seconds() / 60)
         next_in  = max(0, 30 - mins_ago)
-        last_str = "just now" if mins_ago <= 0 else (f"{mins_ago} min ago")
+        if mins_ago <= 0:
+            last_str = "just now"
+        elif mins_ago == 1:
+            last_str = "1 min ago"
+        else:
+            last_str = f"{mins_ago} min ago"
         next_str = "due now" if next_in == 0 else f"in {next_in} min"
+        # Always read crop from ai/status for accuracy
         try:
-            _ai_s = api_get("/ai/status", timeout=3, token=get_token())
+            _ai_s = api_get("/ai/status", timeout=3)
             crop = _ai_s.get("crop", d.get("crop","lettuce")).capitalize()
         except:
             crop = d.get("crop","lettuce").capitalize()
         time_display = last_beirut.strftime("%H:%M")
-        email = get_user_email()
         st.markdown(
             f'''<div style="display:flex;gap:24px;align-items:center;padding:8px 14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;margin-bottom:16px;flex-wrap:wrap">
             <div style="font-size:11px;color:rgba(255,255,255,0.4)">🕐 Last run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{last_str}</span> &nbsp;({time_display} Beirut)</div>
             <div style="font-size:11px;color:rgba(255,255,255,0.4)">⏭ Next run: <span style="color:rgba(255,255,255,0.7);font-weight:600">{next_str}</span></div>
             <div style="font-size:11px;color:rgba(255,255,255,0.4)">🌿 Active crop: <span style="color:#22c55e;font-weight:600">{crop}</span></div>
-            <div style="margin-left:auto;font-size:11px;color:rgba(255,255,255,0.4)">👤 <span style="color:rgba(255,255,255,0.6)">{email}</span></div>
             </div>''',
             unsafe_allow_html=True
         )
@@ -245,45 +160,89 @@ def run_status_bar(d):
 
 def header(title, sub): st.markdown(f'<div class="ph"><div class="pt">{title}</div><div class="ps">{sub}</div></div>', unsafe_allow_html=True)
 
+# ── AUTHENTICATION ────────────────────────────────────────────────────────────
+def auth_page():
+    """Sign in / Sign up page."""
+    st.markdown("""
+    <div style="display:flex;justify-content:center;align-items:center;min-height:70vh">
+    <div style="width:380px">
+    <div style="text-align:center;margin-bottom:32px">
+        <div style="font-size:36px;margin-bottom:8px">🌱</div>
+        <div style="font-size:24px;font-weight:700;color:rgba(255,255,255,0.92);letter-spacing:-0.5px">AgroVision AI</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:4px">Agrivoltaic Farm Intelligence System</div>
+    </div>
+    </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ── Sidebar (shown when logged in) ───────────────────────────────────────────
-def show_sidebar():
-    with st.sidebar:
-        st.markdown(f'''
-        <div style="padding:16px 0 8px 0">
-          <div style="font-size:20px;font-weight:700;color:rgba(255,255,255,0.9)">🌱 AgroVision AI</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px">{get_user_email()}</div>
-        </div>
-        ''', unsafe_allow_html=True)
-        st.divider()
-        if st.button("Sign Out", use_container_width=True):
-            for key in ["access_token","refresh_token","user_id","user_email","user_crop","user_alpha"]:
-                st.session_state.pop(key, None)
-            st.rerun()
-
-def show_topbar():
-    email = get_user_email()
-    col1, col2 = st.columns([0.85, 0.15])
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        if st.button("🚪 Sign Out", use_container_width=True, key="topbar_signout"):
-            for key in ["access_token","refresh_token","user_id","user_email","user_crop","user_alpha"]:
-                st.session_state.pop(key, None)
-            st.rerun()
-    with col1:
-        st.markdown(
-            f'''<div style="padding:6px 0;font-size:12px;color:rgba(255,255,255,0.4)">
-            👤 Signed in as <span style="color:rgba(255,255,255,0.7);font-weight:600">{email}</span>
-            </div>''',
-            unsafe_allow_html=True
-        )
+        tab_login, tab_signup = st.tabs(["Sign In", "Sign Up"])
+
+        with tab_login:
+            with st.form("login_form"):
+                email = st.text_input("Email", key="login_email", placeholder="your@email.com")
+                password = st.text_input("Password", type="password", key="login_pass", placeholder="Enter password")
+                submitted = st.form_submit_button("Sign In", use_container_width=True)
+                if submitted:
+                    if not email or not password:
+                        st.error("Please fill in all fields.")
+                    else:
+                        try:
+                            r = requests.post(f"{BACKEND_URL}/auth/login",
+                                              json={"email": email, "password": password}, timeout=10)
+                            if r.status_code == 200:
+                                data = r.json()
+                                st.session_state["authenticated"] = True
+                                st.session_state["user_email"] = data.get("email", email)
+                                st.rerun()
+                            else:
+                                detail = r.json().get("detail", "Login failed.")
+                                st.error(detail)
+                        except requests.exceptions.ConnectionError:
+                            st.error("Cannot reach backend. Please try again later.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+        with tab_signup:
+            with st.form("signup_form"):
+                new_email = st.text_input("Email", key="signup_email", placeholder="your@email.com")
+                new_pass = st.text_input("Password", type="password", key="signup_pass", placeholder="Min 6 characters")
+                confirm_pass = st.text_input("Confirm Password", type="password", key="signup_confirm", placeholder="Re-enter password")
+                signed = st.form_submit_button("Create Account", use_container_width=True)
+                if signed:
+                    if not new_email or not new_pass or not confirm_pass:
+                        st.error("Please fill in all fields.")
+                    elif new_pass != confirm_pass:
+                        st.error("Passwords do not match.")
+                    elif len(new_pass) < 6:
+                        st.error("Password must be at least 6 characters.")
+                    else:
+                        try:
+                            r = requests.post(f"{BACKEND_URL}/auth/signup",
+                                              json={"email": new_email, "password": new_pass}, timeout=10)
+                            if r.status_code == 200:
+                                st.success("Account created! Please sign in.")
+                            else:
+                                detail = r.json().get("detail", "Signup failed.")
+                                st.error(detail)
+                        except requests.exceptions.ConnectionError:
+                            st.error("Cannot reach backend. Please try again later.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+def check_auth():
+    """Returns True if user is authenticated."""
+    return st.session_state.get("authenticated", False)
 
 
-# ── PAGE 1: OVERVIEW ──────────────────────────────────────────────────────────
+# ── PAGE 1: OVERVIEW ─────────────────────────────────────────────────────────
 def page_overview():
     header("🌱 Overview", "Farm status at a glance")
-    token = get_token()
+
+    # Fetch all data
     try:
-        ai = api_get("/ai/status", timeout=5, token=token)
+        ai = api_get("/ai/status", timeout=5)
         alpha_val = ai.get("alpha", 0.7)
         current_crop = ai.get("crop", "lettuce")
     except:
@@ -294,7 +253,7 @@ def page_overview():
     run_status_bar(d)
 
     try:
-        comp = api_get(f"/treatment/compare?alpha={alpha_val}", timeout=15, token=token)
+        comp = api_get(f"/treatment/compare?alpha={alpha_val}", timeout=15)
         comp["recommended_config"] = comp.get("recommended_config","—").replace("Fixedtilt","Fixed-tilt")
         rec_cfg = comp.get("recommended_config","—")
         fc = comp.get("vertical_forecast",{}) if rec_cfg=="Vertical" else comp.get("fixed_forecast",{})
@@ -306,33 +265,37 @@ def page_overview():
     dli_acc   = d.get("dli_accumulated", 0)
     dli_def   = d.get("dli_deficit", 0)
     irr_pct   = d.get("irrigation_pct", 100)
+    # Read threshold from ai/status so it updates immediately when crop changes
     try:
-        _ai_thresh = api_get("/ai/status", timeout=3, token=token)
+        _ai_thresh = api_get("/ai/status", timeout=3)
         dli_thresh = float(_ai_thresh.get("dli_threshold", d.get("dli_threshold", 14.0)))
     except:
         dli_thresh = d.get("dli_threshold", 14.0)
-
+    # Rebuild alert message using current crop name
     if stressed:
-        msg = (f"Crop light stress detected. Projected DLI {d.get('dli_projected_eod',0):.1f} mol/m2 "
-               f"is below {current_crop.capitalize()} target {dli_thresh:.0f} mol/m2/day "
-               f"(deficit {dli_def:.1f} mol/m2). Irrigation reduced to {irr_pct}% of normal.")
+        msg = (f"Crop light stress detected. Projected DLI {d.get('dli_projected_eod',0):.1f} mol/m² "
+               f"is below {current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day "
+               f"(deficit {dli_def:.1f} mol/m²). Irrigation reduced to {irr_pct}% of normal.")
     else:
-        msg = (f"DLI on track - projected {d.get('dli_projected_eod',0):.1f} mol/m2 by sunset. "
-               f"{current_crop.capitalize()} target {dli_thresh:.0f} mol/m2/day will be met. "
+        msg = (f"DLI on track — projected {d.get('dli_projected_eod',0):.1f} mol/m² by sunset. "
+               f"{current_crop.capitalize()} target {dli_thresh:.0f} mol/m²/day will be met. "
                f"Irrigation at {irr_pct}%.")
 
+    # ── 4 KPI cards ───────────────────────────────────────────────────────────
     k1,k2,k3,k4 = st.columns(4, gap="medium")
     with k1: st.markdown(f'<div class="card"><div class="lbl">PV Peak Power</div><div class="vlg">{fc.get("pv_peak_kw",0):.1f} <span style="font-size:14px;color:var(--muted)">kW</span></div><div class="cap">Next 60 min</div></div>', unsafe_allow_html=True)
     with k2: st.markdown(f'<div class="card"><div class="lbl">Crop Light (PAR)</div><div class="vlg">{fc.get("par_mean",0):.0f} <span style="font-size:14px;color:var(--muted)">umol/s/m2</span></div><div class="cap">Mean next hour</div></div>', unsafe_allow_html=True)
     with k3:
         gc = "#22c55e" if not stressed else "#ef4444"
         badge = '<span class="badge bg">On track</span>' if not stressed else '<span class="badge br">Stress</span>'
-        st.markdown(f'<div class="card"><div class="lbl">DLI - {current_crop.capitalize()}</div><div class="vlg">{dli_pct:.0f}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(dli_pct,gc)}<div style="margin-top:6px">{badge}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card"><div class="lbl">DLI — {current_crop.capitalize()}</div><div class="vlg">{dli_pct:.0f}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(dli_pct,gc)}<div style="margin-top:6px">{badge}</div></div>', unsafe_allow_html=True)
     with k4:
         ic = "#22c55e" if irr_pct>=90 else ("#f59e0b" if irr_pct>=70 else "#ef4444")
         st.markdown(f'<div class="card"><div class="lbl">Irrigation</div><div class="vlg" style="color:{ic}">{irr_pct}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(irr_pct,ic)}<div class="cap">of schedule</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 3 status panels ───────────────────────────────────────────────────────
     s1,s2,s3 = st.columns(3, gap="large")
 
     with s1:
@@ -342,10 +305,10 @@ def page_overview():
             <div style="font-weight:700;margin-bottom:6px">{icon} Crop Light Status</div>
             <div style="font-size:13px;color:var(--text);line-height:1.6">{msg}</div>
             <div style="display:flex;gap:20px;margin-top:10px">
-                <div><div class="lbl">Collected</div><div class="vsm">{dli_acc:.1f} mol/m2</div></div>
-                <div><div class="lbl">Target</div><div class="vsm">{dli_thresh:.0f} mol/m2/day</div></div>
+                <div><div class="lbl">Collected</div><div class="vsm">{dli_acc:.1f} mol/m²</div></div>
+                <div><div class="lbl">Target</div><div class="vsm">{dli_thresh:.0f} mol/m²/day</div></div>
             </div>
-            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">See DLI tab for details</span></div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See DLI tab for details</span></div>
         </div>''', unsafe_allow_html=True)
 
     with s2:
@@ -356,16 +319,20 @@ def page_overview():
             <div style="font-size:13px;color:var(--text);line-height:1.6">{irr_msg}</div>
             <div style="margin-top:10px"><div class="lbl">Current schedule</div>
             <div style="font-size:22px;font-weight:700;color:{ic}">{irr_pct}%</div></div>
-            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">See Irrigation tab for details</span></div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See Irrigation tab for details</span></div>
         </div>''', unsafe_allow_html=True)
 
     with s3:
-        reason = comp.get("reason","") if comp else ""
+        fixed_par=comp.get("fixed_par_mean",0) if comp else 0
+        vert_par=comp.get("vertical_par_mean",0) if comp else 0
+        fixed_pv=comp.get("fixed_pv_kwh",0) if comp else 0
+        vert_pv=comp.get("vertical_pv_kwh",0) if comp else 0
+        reason=comp.get("reason","") if comp else ""
         st.markdown(f'''<div class="card-green">
             <div style="font-weight:700;margin-bottom:6px">☀️ Panel Recommendation</div>
             <div style="font-size:20px;font-weight:700;color:#22c55e;margin-bottom:4px">{rec_cfg}</div>
             <div style="font-size:13px;color:var(--text);line-height:1.6">{reason}</div>
-            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">See AI Forecast tab for details</span></div>
+            <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See AI Forecast tab for details</span></div>
         </div>''', unsafe_allow_html=True)
 
     if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
@@ -373,41 +340,28 @@ def page_overview():
 
 # ── PAGE 2: AI FORECAST ───────────────────────────────────────────────────────
 def page_forecast():
-    header("🤖 AI Forecast", "BiLSTM model - PV R2=0.9085 · PAR R2=0.9280")
-    token = get_token()
+    header("🤖 AI Forecast", "BiLSTM model — PV R²=0.9085 · PAR R²=0.8926")
     c1,c2,c3 = st.columns([1,1,1], gap="large")
-
-    user_crop = st.session_state.get("user_crop", "lettuce")
-    user_alpha = st.session_state.get("user_alpha", 0.7)
-
-    with c1:
-        options = ["lettuce","tomato","wheat"]
-        idx = options.index(user_crop) if user_crop in options else 0
-        crop_sel = st.selectbox("🌿 Crop", options, index=idx, key="fc_crop")
+    with c1: crop_sel = st.selectbox("🌿 Crop", ["lettuce","tomato","wheat"], key="fc_crop")
+    # Read current alpha from backend to keep in sync with Overview
     try:
-        _ai = api_get("/ai/status", timeout=5, token=token)
-        _backend_alpha = float(_ai.get("alpha", user_alpha))
+        _ai = api_get("/ai/status", timeout=5)
+        _backend_alpha = float(_ai.get("alpha", 0.7))
     except:
-        _backend_alpha = user_alpha
+        _backend_alpha = 0.7
+    # Only set default from backend if slider hasn't been touched this session
     if "fc_alpha" not in st.session_state:
         st.session_state["fc_alpha"] = _backend_alpha
-    with c2: alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, _backend_alpha, 0.05, key="fc_alpha")
+    with c2: alpha_sel = st.slider("⚖️ Crop vs energy (α)", 0.0, 1.0, _backend_alpha, 0.05, key="fc_alpha", help="0=max energy · 1=max crop light")
     with c3:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Apply & refresh", key="fc_apply"):
-            try:
-                api_post(f"/crop/{crop_sel}", token=token)
-                api_post("/treatment/alpha", {"alpha": alpha_sel}, token=token)
-                # Save to user settings
-                api_post("/user/settings", {"crop": crop_sel, "alpha": alpha_sel}, token=token)
-                st.session_state["user_crop"] = crop_sel
-                st.session_state["user_alpha"] = alpha_sel
-                st.success("Applied")
+            try: api_post(f"/crop/{crop_sel}"); api_post("/treatment/alpha",{"alpha":alpha_sel}); st.success("Applied")
             except Exception as e: st.error(str(e))
 
     st.markdown("<br>", unsafe_allow_html=True)
     try:
-        comp = api_get(f"/treatment/compare?alpha={alpha_sel}", timeout=15, token=token)
+        comp = api_get(f"/treatment/compare?alpha={alpha_sel}", timeout=15)
         comp["recommended_config"] = comp.get("recommended_config","—").replace("Fixedtilt","Fixed-tilt")
     except requests.exceptions.HTTPError as e:
         show_err("warming_up" if e.response and e.response.status_code==503 else str(e)); return
@@ -419,7 +373,7 @@ def page_forecast():
     mins=[f"+{(i+1)*5}m" for i in range(len(pv_v))]
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="lbl" style="margin-bottom:10px">BILSTM FORECAST - {rec_cfg.upper()} · α={alpha_sel}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="lbl" style="margin-bottom:10px">BILSTM FORECAST — {rec_cfg.upper()} · α={alpha_sel}</div>', unsafe_allow_html=True)
     fig=go.Figure()
     fig.add_trace(go.Scatter(x=mins,y=pv_v,name="PV (kW)",line=dict(color="#22c55e",width=2.5),fill="tozeroy",fillcolor="rgba(34,197,94,0.08)",yaxis="y1",mode="lines+markers",marker=dict(size=5,color="#22c55e")))
     fig.add_trace(go.Scatter(x=mins,y=par_v,name="PAR (umol/s/m2)",line=dict(color="#f59e0b",width=2.5),yaxis="y2",mode="lines+markers",marker=dict(size=5,color="#f59e0b")))
@@ -455,11 +409,11 @@ def page_forecast():
 # ── PAGE 3: DLI ───────────────────────────────────────────────────────────────
 def page_dli():
     header("🌞 Daily Light Integral", "Crop light budget tracking and recommendations")
-    token = get_token()
     d, err = fetch_forecast()
     if err: show_err(err); return
+    # Sync crop from backend so it matches AI Forecast page
     try:
-        ai = api_get("/ai/status", timeout=5, token=token)
+        ai = api_get("/ai/status", timeout=5)
         d["crop"] = ai.get("crop", d.get("crop","lettuce"))
     except: pass
     run_status_bar(d)
@@ -467,54 +421,62 @@ def page_dli():
     crop      = d.get("crop","lettuce").capitalize()
     dli_acc   = d.get("dli_accumulated", 0)
     dli_proj  = d.get("dli_projected_eod", 0)
+    dli_thresh= d.get("dli_threshold", 14.0)
     dli_pct   = d.get("dli_pct", 0)
     dli_def   = d.get("dli_deficit", 0)
     stressed  = d.get("stress_alert", False)
     msg       = d.get("alert_message", "")
-    try:
-        _ai_t = api_get("/ai/status", timeout=3, token=token)
-        dli_thresh = float(_ai_t.get("dli_threshold", d.get("dli_threshold", 14.0)))
-    except:
-        dli_thresh = d.get("dli_threshold", 14.0)
 
+    # Status card
     cls = "card-red" if stressed else "card-green"
     icon = "⚠️" if stressed else "✅"
     status = "Crop light stress detected" if stressed else "Crop light adequate"
     st.markdown(f'<div class="{cls}"><div style="font-size:15px;font-weight:700;margin-bottom:8px">{icon} {status}</div><div style="font-size:13px;color:var(--text);line-height:1.7">{msg}</div></div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # DLI gauge + stats
     g1,g2,g3,g4 = st.columns(4, gap="medium")
-    with g1: st.markdown(f'<div class="card"><div class="lbl">Collected Today</div><div class="vlg">{dli_acc:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m2</span></div></div>', unsafe_allow_html=True)
-    with g2: st.markdown(f'<div class="card"><div class="lbl">Projected Sunset</div><div class="vlg">{dli_proj:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m2</span></div></div>', unsafe_allow_html=True)
-    with g3: st.markdown(f'<div class="card"><div class="lbl">Daily Target ({crop})</div><div class="vlg">{dli_thresh:.0f}<span style="font-size:14px;color:var(--muted)"> mol/m2</span></div></div>', unsafe_allow_html=True)
+    with g1: st.markdown(f'<div class="card"><div class="lbl">Collected Today</div><div class="vlg">{dli_acc:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m²</span></div></div>', unsafe_allow_html=True)
+    with g2: st.markdown(f'<div class="card"><div class="lbl">Projected Sunset</div><div class="vlg">{dli_proj:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m²</span></div></div>', unsafe_allow_html=True)
+    with g3: st.markdown(f'<div class="card"><div class="lbl">Daily Target ({crop})</div><div class="vlg">{dli_thresh:.0f}<span style="font-size:14px;color:var(--muted)"> mol/m²</span></div></div>', unsafe_allow_html=True)
     with g4:
         def_color = "#ef4444" if dli_def > 0 else "#22c55e"
-        st.markdown(f'<div class="card"><div class="lbl">Deficit</div><div class="vlg" style="color:{def_color}">{dli_def:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m2</span></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card"><div class="lbl">Deficit</div><div class="vlg" style="color:{def_color}">{dli_def:.1f}<span style="font-size:14px;color:var(--muted)"> mol/m²</span></div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # Progress bar
     gc = "#22c55e" if not stressed else "#ef4444"
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="lbl" style="margin-bottom:10px">DLI PROGRESS - {dli_pct:.0f}% OF DAILY TARGET</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="background:rgba(255,255,255,0.08);border-radius:999px;height:16px;overflow:hidden"><div style="width:{min(dli_pct,100):.0f}%;background:{gc};height:16px;border-radius:999px"></div></div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="display:flex;justify-content:space-between;margin-top:6px"><div class="cap">0 mol/m2</div><div class="cap">{dli_thresh:.0f} mol/m2/day target</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="lbl" style="margin-bottom:10px">DLI PROGRESS — {dli_pct:.0f}% OF DAILY TARGET</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background:rgba(255,255,255,0.08);border-radius:999px;height:16px;overflow:hidden"><div style="width:{min(dli_pct,100):.0f}%;background:{gc};height:16px;border-radius:999px;transition:width 0.4s"></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="display:flex;justify-content:space-between;margin-top:6px"><div class="cap">0 mol/m²</div><div class="cap">{dli_thresh:.0f} mol/m²/day target</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # Actions
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="lbl" style="margin-bottom:12px">RECOMMENDED ACTIONS</div>', unsafe_allow_html=True)
+
     if stressed:
         deficit_pct = (dli_def / dli_thresh * 100) if dli_thresh > 0 else 0
         if deficit_pct > 50:
-            st.markdown('<div class="action-red"><div style="font-weight:700;color:#f87171;margin-bottom:4px">🚨 Critical light deficit</div><div style="font-size:13px;color:var(--text)">Consider supplemental lighting or adjust panel tilt to reduce shading during peak hours.</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="action-red"><div style="font-weight:700;color:#f87171;margin-bottom:4px">🚨 Critical light deficit</div><div style="font-size:13px;color:var(--text)">Projected DLI is more than 50% below target. Consider supplemental lighting if available, or adjust panel tilt to reduce shading during peak hours.</div></div>', unsafe_allow_html=True)
         elif deficit_pct > 20:
-            st.markdown(f'<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Moderate light deficit</div><div style="font-size:13px;color:var(--text)">Switch to Vertical panel configuration. Reduce irrigation by {min(40, deficit_pct):.0f}%.</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Moderate light deficit</div><div style="font-size:13px;color:var(--text)">Switch to Vertical panel configuration to allow more diffuse light to reach the crop. Reduce irrigation by {:.0f}% as photosynthesis is reduced.'.format(min(40, deficit_pct)) + '</div></div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Minor light deficit</div><div style="font-size:13px;color:var(--text)">Monitor closely. Consider adjusting panel spacing.</div></div>', unsafe_allow_html=True)
-        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Irrigation automatically reduced</div><div style="font-size:13px;color:var(--text)">Less light means less photosynthesis and less water demand.</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Minor light deficit</div><div style="font-size:13px;color:var(--text)">Monitor closely. If deficit persists, consider adjusting panel spacing to allow more sunlight through.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Reduce irrigation</div><div style="font-size:13px;color:var(--text)">Less light means less photosynthesis and less water demand. Irrigation has been automatically reduced.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Check panel orientation</div><div style="font-size:13px;color:var(--text)">Verify that panels are not causing excessive shading during the 10:00–14:00 peak sunlight window.</div></div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Light levels are optimal</div><div style="font-size:13px;color:var(--text)">Crop is on track to meet its daily light target.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Light levels are optimal</div><div style="font-size:13px;color:var(--text)">Crop is on track to meet its daily light target. No immediate action required.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Maintain current configuration</div><div style="font-size:13px;color:var(--text)">Current panel setup is providing adequate PAR. Continue monitoring throughout the day.</div></div>', unsafe_allow_html=True)
+        if dli_pct > 90:
+            st.markdown('<div class="action-item"><div style="font-weight:700;color:#93c5fd;margin-bottom:4px">ℹ️ Approaching daily target</div><div style="font-size:13px;color:var(--text)">DLI target will likely be met before sunset. You may increase panel tilt slightly to boost energy output for the remainder of the day.</div></div>', unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # Crop targets reference
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="lbl" style="margin-bottom:12px">CROP DLI TARGETS REFERENCE</div>', unsafe_allow_html=True)
@@ -524,19 +486,20 @@ def page_dli():
         is_cur = c.lower() == d.get("crop","lettuce").lower()
         b = "2px solid #22c55e" if is_cur else "1px solid rgba(255,255,255,0.08)"
         bg = "rgba(34,197,94,0.07)" if is_cur else "rgba(255,255,255,0.02)"
-        with cols[i]: st.markdown(f'<div style="border:{b};background:{bg};border-radius:10px;padding:10px;text-align:center"><div class="lbl">{c}</div><div style="font-weight:700;font-size:16px">{t}</div><div class="cap">mol/m2/day</div></div>', unsafe_allow_html=True)
+        with cols[i]: st.markdown(f'<div style="border:{b};background:{bg};border-radius:10px;padding:10px;text-align:center"><div class="lbl">{c}</div><div style="font-weight:700;font-size:16px">{t}</div><div class="cap">mol/m²/day</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
     if st.button("🔄 Refresh", key="dli_ref"): st.rerun()
 
 
 # ── PAGE 4: IRRIGATION ────────────────────────────────────────────────────────
 def page_irrigation():
     header("💧 Irrigation", "Automated irrigation management and recommendations")
-    token = get_token()
     d, err = fetch_forecast()
     if err: show_err(err); return
+    # Sync crop from backend so it matches AI Forecast page
     try:
-        ai = api_get("/ai/status", timeout=5, token=token)
+        ai = api_get("/ai/status", timeout=5)
         d["crop"] = ai.get("crop", d.get("crop","lettuce"))
     except: pass
     run_status_bar(d)
@@ -545,68 +508,88 @@ def page_irrigation():
     irr_factor= d.get("irrigation_factor", 1.0)
     dli_pct   = d.get("dli_pct", 0)
     dli_def   = d.get("dli_deficit", 0)
-    try:
-        _ai_t = api_get("/ai/status", timeout=3, token=token)
-        dli_thresh = float(_ai_t.get("dli_threshold", d.get("dli_threshold", 14.0)))
-    except:
-        dli_thresh = d.get("dli_threshold", 14.0)
+    dli_thresh= d.get("dli_threshold", 14.0)
+    stressed  = d.get("stress_alert", False)
     crop      = d.get("crop","lettuce").capitalize()
+
     reduction = 100 - irr_pct
     ic = "#22c55e" if irr_pct>=90 else ("#f59e0b" if irr_pct>=70 else "#ef4444")
     cls = "card-green" if irr_pct>=90 else ("card-amber" if irr_pct>=70 else "card-red")
 
+    # Status
     if irr_pct == 100:
         status_msg = "Irrigation running at full schedule. Crop is receiving adequate light and water demand is normal."
         status_title = "✅ Full irrigation active"
     elif irr_pct >= 80:
-        status_msg = f"Irrigation reduced by {reduction}% due to lower crop light levels."
+        status_msg = f"Irrigation reduced by {reduction}% due to lower crop light levels. Less photosynthesis means less water demand through the leaves."
         status_title = "⚠️ Irrigation slightly reduced"
     else:
-        status_msg = f"Irrigation significantly reduced by {reduction}%. Crop light deficit is causing stomata to partially close, reducing water demand."
+        status_msg = f"Irrigation significantly reduced by {reduction}%. Crop light deficit is causing stomata to partially close, reducing water demand. This is the biologically correct response."
         status_title = "🚨 Irrigation significantly reduced"
 
     st.markdown(f'<div class="{cls}"><div style="font-size:15px;font-weight:700;margin-bottom:8px">{status_title}</div><div style="font-size:13px;color:var(--text);line-height:1.7">{status_msg}</div></div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # Stats
     i1,i2,i3,i4 = st.columns(4, gap="medium")
     with i1: st.markdown(f'<div class="card"><div class="lbl">Current Schedule</div><div class="vlg" style="color:{ic}">{irr_pct}<span style="font-size:14px;color:var(--muted)">%</span></div>{pbar(irr_pct,ic)}</div>', unsafe_allow_html=True)
-    rc = "#22c55e" if reduction==0 else "#f59e0b"
-    with i2: st.markdown(f'<div class="card"><div class="lbl">Reduction</div><div class="vlg" style="color:{rc}">{reduction}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="cap">from normal schedule</div></div>', unsafe_allow_html=True)
+    with i2: st.markdown(f'<div class="card"><div class="lbl">Reduction</div><div class="vlg" style="color:{"#22c55e" if reduction==0 else "#f59e0b"}">{reduction}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="cap">from normal schedule</div></div>', unsafe_allow_html=True)
     with i3: st.markdown(f'<div class="card"><div class="lbl">Irrigation Factor</div><div class="vlg">{irr_factor:.2f}</div><div class="cap">Jarvis 1976 model</div></div>', unsafe_allow_html=True)
     with i4: st.markdown(f'<div class="card"><div class="lbl">DLI Progress</div><div class="vlg">{dli_pct:.0f}<span style="font-size:14px;color:var(--muted)">%</span></div><div class="cap">drives irrigation level</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # How it works
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="lbl" style="margin-bottom:12px">HOW IRRIGATION IS CALCULATED</div>', unsafe_allow_html=True)
     st.markdown(f'''<div style="font-size:13px;color:var(--text);line-height:1.8">
     The irrigation system uses the <b>Jarvis (1976) stomatal conductance model</b>:<br><br>
     <code style="background:rgba(255,255,255,0.08);padding:8px 12px;border-radius:6px;display:block;margin:8px 0">
-    factor = 1 - (deficit / target x 0.5) &nbsp;&nbsp; minimum = 0.60
+    factor = 1 − (deficit / target × 0.5) &nbsp;&nbsp; minimum = 0.60
     </code><br>
-    When the crop has a DLI deficit of <b>{dli_def:.1f} mol/m2</b> against a target of <b>{dli_thresh:.0f} mol/m2</b>,
-    photosynthesis slows down and stomata partially close, reducing water demand.
+    When the crop has a DLI deficit of <b>{dli_def:.1f} mol/m²</b> against a target of <b>{dli_thresh:.0f} mol/m²</b>,
+    photosynthesis slows down, stomata partially close, and less water is lost through the leaves.
+    The system automatically reduces irrigation accordingly — never cutting more than 40%.
     </div>''', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # Actions
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="lbl" style="margin-bottom:12px">IRRIGATION SCHEDULE - CURRENT VS NORMAL</div>', unsafe_allow_html=True)
+    st.markdown('<div class="lbl" style="margin-bottom:12px">RECOMMENDED ACTIONS</div>', unsafe_allow_html=True)
+    if irr_pct == 100:
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ No adjustment needed</div><div style="font-size:13px;color:var(--text)">Crop is receiving adequate light. Maintain full irrigation schedule.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Monitor soil moisture</div><div style="font-size:13px;color:var(--text)">Check soil sensors if available to confirm moisture levels are in the optimal range for {}.'.format(crop) + '</div></div>', unsafe_allow_html=True)
+    elif irr_pct >= 80:
+        st.markdown('<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Minor reduction active</div><div style="font-size:13px;color:var(--text)">Irrigation reduced by {}%. Monitor crop health and revert to full schedule if wilting is observed.'.format(reduction) + '</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Check for heat stress signs</div><div style="font-size:13px;color:var(--text)">Inspect leaf edges and color for early signs of water stress, especially during midday hours.</div></div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="action-red"><div style="font-weight:700;color:#f87171;margin-bottom:4px">🚨 Significant reduction active — monitor closely</div><div style="font-size:13px;color:var(--text)">Irrigation reduced by {}%. Visually inspect crops for wilting. If stress signs appear, override to manual full schedule.'.format(reduction) + '</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-warn"><div style="font-weight:700;color:#fbbf24;margin-bottom:4px">⚠️ Investigate light deficit cause</div><div style="font-size:13px;color:var(--text)">Check for panel misalignment, cloud cover, or shading issues that may be reducing crop light below target.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="action-item"><div style="font-weight:700;color:#4ade80;margin-bottom:4px">✅ Consider panel reconfiguration</div><div style="font-size:13px;color:var(--text)">Switching to Vertical panel orientation may improve crop light and help restore normal irrigation levels.</div></div>', unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Schedule visualizer
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="lbl" style="margin-bottom:12px">IRRIGATION SCHEDULE — CURRENT VS NORMAL</div>', unsafe_allow_html=True)
     hours = [f"{h:02d}:00" for h in range(6,21)]
     normal = [100]*len(hours)
     actual = [irr_pct if 7<=h<=18 else 0 for h in range(6,21)]
     fig=go.Figure()
     fig.add_trace(go.Bar(name="Normal schedule",x=hours,y=normal,marker_color="rgba(255,255,255,0.15)",opacity=0.6))
     fig.add_trace(go.Bar(name="Current schedule",x=hours,y=actual,marker_color=ic,opacity=0.85))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),barmode="overlay",height=200,yaxis=dict(title="%",gridcolor="rgba(255,255,255,0.08)",range=[0,120]),margin=dict(l=8,r=8,t=8,b=8))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),legend=dict(bgcolor="rgba(0,0,0,0)",font=dict(size=11)),barmode="overlay",height=200,yaxis=dict(title="%",gridcolor="rgba(255,255,255,0.08)",range=[0,120]),margin=dict(l=8,r=8,t=8,b=8))
     st.plotly_chart(fig,use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
+
     if st.button("🔄 Refresh", key="irr_ref"): st.rerun()
 
 
 # ── PAGE 5: DESIGN & COMPARE ──────────────────────────────────────────────────
 def page_design():
     header("⚙️ Design & Compare", "Simulate panel configurations and compare against AI forecast")
-    token = get_token()
     if "saved_scenarios" not in st.session_state: st.session_state["saved_scenarios"]=[]
     if "design_result" not in st.session_state: st.session_state["design_result"]=None
 
@@ -644,14 +627,28 @@ def page_design():
         for col,lbl,val,unit in [(r1,"PV Performance",out["pv_performance"],"%"),(r2,"Crop Comfort",out["crop_comfort"],"%"),(r3,"Water Savings",out["water_savings_kpi"],"%"),(r4,"Leaf Cooling",out["leaf_cooling_c"],"°C")]:
             c="#22c55e" if val>=70 else ("#f59e0b" if val>=40 else "#ef4444")
             with col: st.markdown(f'<div class="sbox"><div class="lbl">{lbl}</div><div class="vmd" style="color:{c if unit=="%" else "var(--text)"}">{val:.1f}{unit}</div></div>', unsafe_allow_html=True)
+
         st.markdown('<div class="div"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="lbl" style="margin-bottom:8px">VS LIVE AI FORECAST</div>', unsafe_allow_html=True)
         try:
-            d=api_get("/forecast",timeout=10,token=token)
+            d=api_get("/forecast",timeout=10)
             cmp1,cmp2,cmp3=st.columns(3,gap="medium")
             with cmp1: st.markdown(f'<div class="sbox"><div class="lbl">Your PV gain</div><div class="vsm" style="color:#22c55e">{out["pv_gain_percent"]:.1f}%</div><div class="cap">AI peak: {d.get("pv_peak_kw",0):.1f} kW</div></div>', unsafe_allow_html=True)
             with cmp2: st.markdown(f'<div class="sbox"><div class="lbl">AI PAR forecast</div><div class="vsm">{d.get("par_mean",0):.0f}</div><div class="cap">live reading</div></div>', unsafe_allow_html=True)
             with cmp3: st.markdown(f'<div class="sbox"><div class="lbl">AI recommendation</div><div class="vsm">{d.get("recommended_config","—")}</div><div class="cap">Irrigation: {d.get("irrigation_pct",100)}%</div></div>', unsafe_allow_html=True)
         except: st.caption("Could not load live AI data.")
+
+        st.markdown('<div class="div"></div>', unsafe_allow_html=True)
+        saved=st.session_state["saved_scenarios"]
+        st.markdown(f'<div class="lbl" style="margin-bottom:8px">SAVE SCENARIO ({len(saved)}/3)</div>', unsafe_allow_html=True)
+        if len(saved)<3:
+            nm=st.text_input("Name",value=mode,key="sc_nm",label_visibility="collapsed")
+            if st.button("Save scenario"):
+                nc=nm.strip() or "Scenario"
+                idx=next((i for i,s in enumerate(saved) if s["name"]==nc),None)
+                if idx is not None: st.session_state["saved_scenarios"][idx]={"name":nc,"params":params,"result":out}; st.success(f"Updated '{nc}'")
+                else: st.session_state["saved_scenarios"].append({"name":nc,"params":params,"result":out}); st.success(f"Saved ({len(saved)+1}/3)")
+        else: st.warning("3 scenarios saved. Remove one below.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     saved=st.session_state["saved_scenarios"]
@@ -664,28 +661,38 @@ def page_design():
     for i,s in enumerate(saved):
         c1,c2,c3=st.columns([0.45,0.45,0.10])
         with c1: st.markdown(f'<span style="font-weight:700;color:{COLORS[i]}">{s["name"]}</span>', unsafe_allow_html=True)
-        with c2: st.caption(f'PV {s["result"]["pv_performance"]:.0f}% · Comfort {s["result"]["crop_comfort"]:.0f}%')
+        with c2: st.caption(f'PV {s["result"]["pv_performance"]:.0f}% · Comfort {s["result"]["crop_comfort"]:.0f}% · Water {s["result"]["water_savings_kpi"]:.0f}%')
         with c3:
             if st.button("✕",key=f"rm_{i}"): st.session_state["saved_scenarios"].pop(i); st.rerun()
+    if len(saved)>=2:
+        st.markdown('<div class="div"></div>', unsafe_allow_html=True)
+        names=[s["name"] for s in saved]; results=[s["result"] for s in saved]; colors=COLORS[:len(saved)]
+        ml=[m[1] for m in METRICS]
+        fig=go.Figure()
+        for ci,(n,r) in enumerate(zip(names,results)):
+            nv=[r[k]/mv for k,_,mv in METRICS]; nvc=nv+nv[:1]; thc=ml+ml[:1]
+            fig.add_trace(go.Scatterpolar(r=nvc,theta=thc,fill='toself',name=n,line=dict(color=colors[ci],width=2),opacity=0.25))
+            fig.add_trace(go.Scatterpolar(r=nvc,theta=thc,fill=None,showlegend=False,line=dict(color=colors[ci],width=2)))
+        fig.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.3)",size=8)),angularaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.6)",size=10))),paper_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans"),legend=dict(bgcolor="rgba(0,0,0,0)"),margin=dict(l=30,r=30,t=20,b=20),height=300)
+        st.plotly_chart(fig,use_container_width=True)
+        wc=st.columns(len(METRICS),gap="small")
+        for i,(key,lbl,_) in enumerate(METRICS):
+            vals=[r[key] for r in results]; bi=vals.index(max(vals))
+            with wc[i]: st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 6px;background:rgba(255,255,255,0.02)"><div class="lbl">{lbl}</div><div style="font-weight:700;color:{colors[bi]};font-size:13px;margin-top:4px">{names[bi]}</div><div class="cap">{results[bi][key]:.1f}</div></div>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ── PAGE 6: HISTORY ───────────────────────────────────────────────────────────
 def page_history():
-    header("📈 History", "Your personal inference history (last 24 hours)")
-    token = get_token()
+    header("📈 History", "Last 24 hours of AI forecast records")
     try:
-        hist = api_get("/user/history", timeout=10, token=token)
+        hist=api_get("/history",timeout=10)
     except Exception as e:
-        # fallback to global history
-        try:
-            hist = api_get("/history", timeout=10, token=token)
-        except:
-            st.error("Could not load history."); st.caption(str(e)); return
+        st.error("Could not load history."); st.caption(str(e)); return
 
-    records = hist.get("records", [])
-    if len(records) < 2:
-        st.info("Not enough history yet - data saves every 30 min. Keep the site open to accumulate records.")
+    records=hist.get("records",[])
+    if len(records)<2:
+        st.info("Not enough history yet — data saves every 30 min. Keep the site open to accumulate records.")
         return
 
     df=pd.DataFrame(records)
@@ -696,7 +703,7 @@ def page_history():
     def hchart(y,name,color,fill_color,height=200):
         fig=go.Figure()
         fig.add_trace(go.Scatter(x=df["time"],y=df[y],fill="tozeroy",fillcolor=fill_color,line=dict(color=color,width=2),mode="lines+markers",marker=dict(size=4)))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),margin=dict(l=8,r=8,t=8,b=8),height=height)
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(gridcolor="rgba(255,255,255,0.08)"),margin=dict(l=8,r=8,t=8,b=8),height=height)
         return fig
 
     c1,c2=st.columns(2,gap="large")
@@ -712,7 +719,7 @@ def page_history():
     st.markdown("<br>", unsafe_allow_html=True)
     c3,c4=st.columns(2,gap="large")
     with c3:
-        st.markdown('<div class="card"><div class="lbl" style="margin-bottom:8px">DLI ACCUMULATED (mol/m2)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card"><div class="lbl" style="margin-bottom:8px">DLI ACCUMULATED (mol/m²)</div>', unsafe_allow_html=True)
         st.plotly_chart(hchart("dli_accumulated","DLI","#60a5fa","rgba(96,165,250,0.1)"),use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     with c4:
@@ -720,7 +727,7 @@ def page_history():
         fig4=go.Figure()
         fig4.add_trace(go.Scatter(x=df["time"],y=df["irrigation_pct"],fill="tozeroy",fillcolor="rgba(167,139,250,0.1)",line=dict(color="#a78bfa",width=2),mode="lines+markers",marker=dict(size=4)))
         fig4.add_hline(y=100,line=dict(color="rgba(255,255,255,0.2)",dash="dot",width=1))
-        fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(gridcolor="rgba(255,255,255,0.08)",range=[50,105]),margin=dict(l=8,r=8,t=8,b=8),height=200)
+        fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans",size=11),xaxis=dict(gridcolor="rgba(255,255,255,0.08)",linecolor="rgba(255,255,255,0.08)",tickfont=dict(size=10)),yaxis=dict(gridcolor="rgba(255,255,255,0.08)",range=[50,105]),margin=dict(l=8,r=8,t=8,b=8),height=200)
         st.plotly_chart(fig4,use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -730,23 +737,31 @@ def page_history():
     s1,s2,s3,s4=st.columns(4,gap="medium")
     s1.metric("Avg PV peak",f'{df["pv_peak_kw"].mean():.1f} kW')
     s2.metric("Avg PAR",f'{df["par_mean"].mean():.0f}')
-    s3.metric("Max DLI",f'{df["dli_accumulated"].max():.1f} mol/m2')
+    s3.metric("Max DLI",f'{df["dli_accumulated"].max():.1f} mol/m²')
     s4.metric("Stress events",str(int(df["stress_alert"].sum())))
     st.markdown("</div>", unsafe_allow_html=True)
+
     if st.button("🔄 Refresh history",key="hist_ref"): st.rerun()
 
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
-    st.set_page_config(page_title="AgroVision AI", layout="wide")
+    st.set_page_config(page_title="Agrivoltaic Dashboard", layout="wide")
 
-    if not is_logged_in():
-        page_auth()
+    if not check_auth():
+        auth_page()
         return
 
-    show_sidebar()
-    show_topbar()
-    tabs = st.tabs(["Overview","AI Forecast","DLI","Irrigation","Design & Compare","History"])
+    # Logged in — show logout button in sidebar-like top area
+    top_left, top_right = st.columns([8, 2])
+    with top_right:
+        user_email = st.session_state.get("user_email", "")
+        st.markdown(f'<div style="text-align:right;font-size:12px;color:rgba(255,255,255,0.45);padding:4px 0">👤 {user_email}</div>', unsafe_allow_html=True)
+        if st.button("Logout", key="logout_btn"):
+            st.session_state["authenticated"] = False
+            st.session_state["user_email"] = ""
+            st.rerun()
+
+    tabs=st.tabs(["Overview","AI Forecast","DLI","Irrigation","Design & Compare","History"])
     with tabs[0]: page_overview()
     with tabs[1]: page_forecast()
     with tabs[2]: page_dli()
@@ -754,5 +769,5 @@ def main():
     with tabs[4]: page_design()
     with tabs[5]: page_history()
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
