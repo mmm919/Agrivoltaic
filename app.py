@@ -335,7 +335,21 @@ def page_overview():
             <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See AI Forecast tab for details</span></div>
         </div>''', unsafe_allow_html=True)
 
-    if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
+    col_ref, col_demo = st.columns([1, 1])
+    with col_ref:
+        if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
+    with col_demo:
+        try:
+            demo_status = api_get("/demo/status", timeout=5)
+            is_demo = demo_status.get("demo_mode", False)
+            demo_label = "🎬 Demo Mode: ON" if is_demo else "🎬 Demo Mode: OFF"
+            demo_color = "#22c55e" if is_demo else "rgba(255,255,255,0.4)"
+            st.markdown(f'<div style="font-size:12px;color:{demo_color};padding:6px 0">{demo_label}</div>', unsafe_allow_html=True)
+            if st.button("Toggle Demo Mode", key="demo_toggle"):
+                api_post("/demo/toggle")
+                st.rerun()
+        except:
+            pass
 
 
 # ── PAGE 2: AI FORECAST ───────────────────────────────────────────────────────
