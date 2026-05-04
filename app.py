@@ -194,55 +194,29 @@ def auth_page():
     left, right = st.columns([1.1, 0.9], gap="large")
 
     with left:
-        st.markdown('''<div class="auth-hero">
-        <div style="margin-bottom:28px">
-            <div style="font-size:13px;font-weight:600;color:#22c55e;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">🌱 AgroVision AI</div>
-            <div style="font-size:36px;font-weight:800;color:rgba(255,255,255,0.95);line-height:1.15;margin-bottom:12px">
-                Autonomous Intelligence<br/>for Agrivoltaic Farms
+        st.markdown("""
+        <div style="background:linear-gradient(135deg,rgba(34,197,94,0.08),rgba(96,165,250,0.06));border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:36px 28px;height:100%">
+            <div style="font-size:12px;font-weight:600;color:#22c55e;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">🌱 AgroVision AI</div>
+            <div style="font-size:32px;font-weight:800;color:rgba(255,255,255,0.95);line-height:1.2;margin-bottom:10px">Autonomous Intelligence<br/>for Agrivoltaic Farms</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.45);line-height:1.6;margin-bottom:24px">Real-time BiLSTM forecasting of solar energy and crop light — connected to automated irrigation and farm decisions.</div>
+            <div style="margin-bottom:28px">
+                <span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:5px 12px;font-size:12px;color:rgba(255,255,255,0.7);display:inline-block;margin:3px">⚡ BiLSTM R² = 0.9085</span>
+                <span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:5px 12px;font-size:12px;color:rgba(255,255,255,0.7);display:inline-block;margin:3px">🌿 PAR R² = 0.9280</span>
+                <span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:5px 12px;font-size:12px;color:rgba(255,255,255,0.7);display:inline-block;margin:3px">📡 30-min inference</span>
+                <span style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:5px 12px;font-size:12px;color:rgba(255,255,255,0.7);display:inline-block;margin:3px">💧 Auto irrigation</span>
             </div>
-            <div style="font-size:15px;color:rgba(255,255,255,0.5);line-height:1.6">
-                Real-time BiLSTM forecasting of solar energy and crop light — connected to automated irrigation and farm decisions.
-            </div>
+            <table style="width:100%;border-collapse:collapse">
+                <tr><td style="padding:8px 0;vertical-align:top;width:44px"><div style="width:36px;height:36px;border-radius:8px;background:rgba(34,197,94,0.12);text-align:center;line-height:36px;font-size:16px">⚡</div></td>
+                <td style="padding:8px 0;vertical-align:top"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85)">Dual-Output AI Forecast</div><div style="font-size:12px;color:rgba(255,255,255,0.4)">Simultaneously predicts PV power and crop PAR for the next 60 minutes</div></td></tr>
+                <tr><td style="padding:8px 0;vertical-align:top"><div style="width:36px;height:36px;border-radius:8px;background:rgba(96,165,250,0.12);text-align:center;line-height:36px;font-size:16px">☀️</div></td>
+                <td style="padding:8px 0;vertical-align:top"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85)">DLI Stress Detection</div><div style="font-size:12px;color:rgba(255,255,255,0.4)">Detects crop light deficits before visible damage appears</div></td></tr>
+                <tr><td style="padding:8px 0;vertical-align:top"><div style="width:36px;height:36px;border-radius:8px;background:rgba(245,158,11,0.12);text-align:center;line-height:36px;font-size:16px">💧</div></td>
+                <td style="padding:8px 0;vertical-align:top"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85)">Automated Irrigation</div><div style="font-size:12px;color:rgba(255,255,255,0.4)">Reduces water usage proportionally to light deficit via Jarvis model</div></td></tr>
+                <tr><td style="padding:8px 0;vertical-align:top"><div style="width:36px;height:36px;border-radius:8px;background:rgba(167,139,250,0.12);text-align:center;line-height:36px;font-size:16px">📊</div></td>
+                <td style="padding:8px 0;vertical-align:top"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85)">Live Dashboard</div><div style="font-size:12px;color:rgba(255,255,255,0.4)">5-tab interface with real-time charts, history, and configuration tools</div></td></tr>
+            </table>
         </div>
-
-        <div style="display:flex;flex-wrap:wrap;margin-bottom:28px">
-            <span class="stat-pill">⚡ BiLSTM R² = 0.9085</span>
-            <span class="stat-pill">🌿 PAR R² = 0.9280</span>
-            <span class="stat-pill">📡 Live 30-min inference</span>
-            <span class="stat-pill">💧 Auto irrigation</span>
-        </div>
-
-        <div>
-            <div class="feature-row">
-                <div class="feature-icon" style="background:rgba(34,197,94,0.12)">⚡</div>
-                <div>
-                    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:2px">Dual-Output AI Forecast</div>
-                    <div style="font-size:12px;color:rgba(255,255,255,0.45)">Simultaneously predicts PV power and crop PAR for the next 60 minutes</div>
-                </div>
-            </div>
-            <div class="feature-row">
-                <div class="feature-icon" style="background:rgba(96,165,250,0.12)">☀️</div>
-                <div>
-                    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:2px">DLI Stress Detection</div>
-                    <div style="font-size:12px;color:rgba(255,255,255,0.45)">Detects crop light deficits before visible damage appears</div>
-                </div>
-            </div>
-            <div class="feature-row">
-                <div class="feature-icon" style="background:rgba(245,158,11,0.12)">💧</div>
-                <div>
-                    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:2px">Automated Irrigation</div>
-                    <div style="font-size:12px;color:rgba(255,255,255,0.45)">Reduces water usage proportionally to light deficit via Jarvis model</div>
-                </div>
-            </div>
-            <div class="feature-row">
-                <div class="feature-icon" style="background:rgba(167,139,250,0.12)">📊</div>
-                <div>
-                    <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);margin-bottom:2px">Live Dashboard</div>
-                    <div style="font-size:12px;color:rgba(255,255,255,0.45)">5-tab interface with real-time charts, history, and configuration tools</div>
-                </div>
-            </div>
-        </div>
-        </div>''', unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     with right:
         st.markdown("<div style='padding-top:20px'>", unsafe_allow_html=True)
