@@ -335,21 +335,7 @@ def page_overview():
             <div style="margin-top:8px"><span style="font-size:11px;color:var(--muted)">→ See AI Forecast tab for details</span></div>
         </div>''', unsafe_allow_html=True)
 
-    col_ref, col_demo = st.columns([1, 1])
-    with col_ref:
-        if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
-    with col_demo:
-        try:
-            demo_status = api_get("/demo/status", timeout=5)
-            is_demo = demo_status.get("demo_mode", False)
-            demo_label = "🎬 Demo Mode: ON" if is_demo else "🎬 Demo Mode: OFF"
-            demo_color = "#22c55e" if is_demo else "rgba(255,255,255,0.4)"
-            st.markdown(f'<div style="font-size:12px;color:{demo_color};padding:6px 0">{demo_label}</div>', unsafe_allow_html=True)
-            if st.button("Toggle Demo Mode", key="demo_toggle"):
-                api_post("/demo/toggle")
-                st.rerun()
-        except:
-            pass
+    if st.button("🔄 Refresh", key="ov_ref"): st.rerun()
 
 
 # ── PAGE 2: AI FORECAST ───────────────────────────────────────────────────────
@@ -602,101 +588,6 @@ def page_irrigation():
 
 
 # ── PAGE 5: DESIGN & COMPARE ──────────────────────────────────────────────────
-def page_design():
-    header("⚙️ Design & Compare", "Simulate panel configurations and compare against AI forecast")
-    if "saved_scenarios" not in st.session_state: st.session_state["saved_scenarios"]=[]
-    if "design_result" not in st.session_state: st.session_state["design_result"]=None
-
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="lbl" style="margin-bottom:12px">DESIGN PARAMETERS</div>', unsafe_allow_html=True)
-    mode=st.radio("Mode",["Agrivoltaic","Open cropland"],horizontal=True)
-    open_cl=mode=="Open cropland"
-    st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-    c1,c2=st.columns(2,gap="large")
-    with c1:
-        ph=st.slider("Panel height (m)",0.5,5.0,2.0,0.1,disabled=open_cl)
-        ps=st.slider("Panel spacing (m)",0.5,6.0,3.0,0.1,disabled=open_cl)
-        tilt=st.slider("Tilt angle (°)",0.0,60.0,25.0,1.0,disabled=open_cl)
-    with c2:
-        ch=st.slider("Canopy height (m)",0.1,3.0,1.4,0.1)
-        lai=st.slider("Leaf area index (LAI)",0.0,6.0,3.0,0.1)
-        soil=st.radio("Soil wetness",["Dry","Medium","Wet"],horizontal=True)
-        trk=st.toggle("Single axis tracking",disabled=open_cl)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    params={"panel_height_m":ph if not open_cl else 0.8,"panel_spacing_m":ps if not open_cl else 1.2,
-            "tilt_deg":tilt if not open_cl else 0.0,"canopy_height_m":ch,"lai":lai,
-            "soil_wetness":soil,"single_axis_tracking":trk and not open_cl}
-
-    if st.button("▶ Run simulation"):
-        st.session_state["design_result"]={"params":params,"result":simulate_scenario(params),"mode":mode}
-
-    if st.session_state["design_result"]:
-        out=st.session_state["design_result"]["result"]
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="lbl" style="margin-bottom:12px">SIMULATION RESULTS</div>', unsafe_allow_html=True)
-        r1,r2,r3,r4=st.columns(4,gap="medium")
-        for col,lbl,val,unit in [(r1,"PV Performance",out["pv_performance"],"%"),(r2,"Crop Comfort",out["crop_comfort"],"%"),(r3,"Water Savings",out["water_savings_kpi"],"%"),(r4,"Leaf Cooling",out["leaf_cooling_c"],"°C")]:
-            c="#22c55e" if val>=70 else ("#f59e0b" if val>=40 else "#ef4444")
-            with col: st.markdown(f'<div class="sbox"><div class="lbl">{lbl}</div><div class="vmd" style="color:{c if unit=="%" else "var(--text)"}">{val:.1f}{unit}</div></div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-        st.markdown('<div class="lbl" style="margin-bottom:8px">VS LIVE AI FORECAST</div>', unsafe_allow_html=True)
-        try:
-            d=api_get("/forecast",timeout=10)
-            cmp1,cmp2,cmp3=st.columns(3,gap="medium")
-            with cmp1: st.markdown(f'<div class="sbox"><div class="lbl">Your PV gain</div><div class="vsm" style="color:#22c55e">{out["pv_gain_percent"]:.1f}%</div><div class="cap">AI peak: {d.get("pv_peak_kw",0):.1f} kW</div></div>', unsafe_allow_html=True)
-            with cmp2: st.markdown(f'<div class="sbox"><div class="lbl">AI PAR forecast</div><div class="vsm">{d.get("par_mean",0):.0f}</div><div class="cap">live reading</div></div>', unsafe_allow_html=True)
-            with cmp3: st.markdown(f'<div class="sbox"><div class="lbl">AI recommendation</div><div class="vsm">{d.get("recommended_config","—")}</div><div class="cap">Irrigation: {d.get("irrigation_pct",100)}%</div></div>', unsafe_allow_html=True)
-        except: st.caption("Could not load live AI data.")
-
-        st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-        saved=st.session_state["saved_scenarios"]
-        st.markdown(f'<div class="lbl" style="margin-bottom:8px">SAVE SCENARIO ({len(saved)}/3)</div>', unsafe_allow_html=True)
-        if len(saved)<3:
-            nm=st.text_input("Name",value=mode,key="sc_nm",label_visibility="collapsed")
-            if st.button("Save scenario"):
-                nc=nm.strip() or "Scenario"
-                idx=next((i for i,s in enumerate(saved) if s["name"]==nc),None)
-                if idx is not None: st.session_state["saved_scenarios"][idx]={"name":nc,"params":params,"result":out}; st.success(f"Updated '{nc}'")
-                else: st.session_state["saved_scenarios"].append({"name":nc,"params":params,"result":out}); st.success(f"Saved ({len(saved)+1}/3)")
-        else: st.warning("3 scenarios saved. Remove one below.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    saved=st.session_state["saved_scenarios"]
-    if not saved: return
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    COLORS=["#22c55e","#f59e0b","#60a5fa"]
-    METRICS=[("pv_gain_percent","PV Gain (%)",20.0),("leaf_cooling_c","Leaf Cooling (°C)",25.0),("water_savings_percent","Water Savings (%)",50.0),("comfort_score","Comfort",100.0),("heat_index_reduction_c","Heat Red.",20.0)]
-    st.markdown(f'<div class="lbl" style="margin-bottom:12px">SAVED SCENARIOS ({len(saved)}/3)</div>', unsafe_allow_html=True)
-    for i,s in enumerate(saved):
-        c1,c2,c3=st.columns([0.45,0.45,0.10])
-        with c1: st.markdown(f'<span style="font-weight:700;color:{COLORS[i]}">{s["name"]}</span>', unsafe_allow_html=True)
-        with c2: st.caption(f'PV {s["result"]["pv_performance"]:.0f}% · Comfort {s["result"]["crop_comfort"]:.0f}% · Water {s["result"]["water_savings_kpi"]:.0f}%')
-        with c3:
-            if st.button("✕",key=f"rm_{i}"): st.session_state["saved_scenarios"].pop(i); st.rerun()
-    if len(saved)>=2:
-        st.markdown('<div class="div"></div>', unsafe_allow_html=True)
-        names=[s["name"] for s in saved]; results=[s["result"] for s in saved]; colors=COLORS[:len(saved)]
-        ml=[m[1] for m in METRICS]
-        fig=go.Figure()
-        for ci,(n,r) in enumerate(zip(names,results)):
-            nv=[r[k]/mv for k,_,mv in METRICS]; nvc=nv+nv[:1]; thc=ml+ml[:1]
-            fig.add_trace(go.Scatterpolar(r=nvc,theta=thc,fill='toself',name=n,line=dict(color=colors[ci],width=2),opacity=0.25))
-            fig.add_trace(go.Scatterpolar(r=nvc,theta=thc,fill=None,showlegend=False,line=dict(color=colors[ci],width=2)))
-        fig.update_layout(polar=dict(bgcolor="rgba(0,0,0,0)",radialaxis=dict(visible=True,range=[0,1],gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.3)",size=8)),angularaxis=dict(gridcolor="rgba(255,255,255,0.08)",tickfont=dict(color="rgba(255,255,255,0.6)",size=10))),paper_bgcolor="rgba(0,0,0,0)",font=dict(color="rgba(255,255,255,0.6)",family="DM Sans"),legend=dict(bgcolor="rgba(0,0,0,0)"),margin=dict(l=30,r=30,t=20,b=20),height=300)
-        st.plotly_chart(fig,use_container_width=True)
-        wc=st.columns(len(METRICS),gap="small")
-        for i,(key,lbl,_) in enumerate(METRICS):
-            vals=[r[key] for r in results]; bi=vals.index(max(vals))
-            with wc[i]: st.markdown(f'<div style="text-align:center;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 6px;background:rgba(255,255,255,0.02)"><div class="lbl">{lbl}</div><div style="font-weight:700;color:{colors[bi]};font-size:13px;margin-top:4px">{names[bi]}</div><div class="cap">{results[bi][key]:.1f}</div></div>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ── PAGE 6: HISTORY ───────────────────────────────────────────────────────────
 def page_history():
     header("📈 History", "Last 24 hours of AI forecast records")
     try:
@@ -775,13 +666,12 @@ def main():
             st.session_state["user_email"] = ""
             st.rerun()
 
-    tabs=st.tabs(["Overview","AI Forecast","DLI","Irrigation","Design & Compare","History"])
+    tabs=st.tabs(["Overview","AI Forecast","DLI","Irrigation","History"])
     with tabs[0]: page_overview()
     with tabs[1]: page_forecast()
     with tabs[2]: page_dli()
     with tabs[3]: page_irrigation()
-    with tabs[4]: page_design()
-    with tabs[5]: page_history()
+    with tabs[4]: page_history()
 
 if __name__=="__main__":
     main()
