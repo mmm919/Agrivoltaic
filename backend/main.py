@@ -589,11 +589,20 @@ def set_crop(name: str):
 @app.post("/demo/toggle")
 def toggle_demo():
     """Toggle demo mode on/off — switches sensor window between CSV and live OWM."""
+    global _demo_cursor
     s = load_json(SETTINGS_PATH, {})
     current = bool(s.get("demo_mode", False))
     s["demo_mode"] = not current
     save_json(SETTINGS_PATH, s)
     mode = "ON" if s["demo_mode"] else "OFF"
+
+    # When turning demo ON, pre-seed DLI to a realistic noon value
+    # June 8 noon — approximately 8 cycles of ~3.0 mol/m² each = ~24 mol already accumulated
+    if s["demo_mode"] and _dli is not None:
+        _dli.accumulated = 12.0   # pre-seed to ~50% of tomato target (25 mol)
+        log.info("[DEMO] Pre-seeded DLI to %.1f mol/m²", _dli.accumulated)
+        _demo_cursor = 0
+
     log.info("[DEMO] Demo mode turned %s", mode)
     return {"demo_mode": s["demo_mode"], "message": f"Demo mode {mode}"}
 
