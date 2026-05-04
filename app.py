@@ -418,14 +418,20 @@ def page_dli():
     except: pass
     run_status_bar(d)
 
-    crop      = d.get("crop","lettuce").capitalize()
-    dli_acc   = d.get("dli_accumulated", 0)
-    dli_proj  = d.get("dli_projected_eod", 0)
-    dli_thresh= d.get("dli_threshold", 14.0)
-    dli_pct   = d.get("dli_pct", 0)
-    dli_def   = d.get("dli_deficit", 0)
-    stressed  = d.get("stress_alert", False)
-    msg       = d.get("alert_message", "")
+    crop      = d.get("crop","tomato").capitalize()
+    # ── June 8 demo values ────────────────────────────────────────────────────
+    dli_acc   = 14.2   # collected so far (noon on a sunny day)
+    dli_proj  = 24.1   # projected end of day
+    dli_thresh= 25.0   # tomato target
+    dli_pct   = round(dli_acc / dli_thresh * 100, 1)   # 56.8%
+    dli_def   = max(0, dli_thresh - dli_proj)           # 0.9 mol deficit
+    stressed  = dli_proj < dli_thresh
+    msg       = (f"Crop light stress detected. Projected DLI {dli_proj:.1f} mol/m² "
+                 f"is below {crop} target {dli_thresh:.0f} mol/m²/day "
+                 f"(deficit {dli_def:.1f} mol/m²). Irrigation reduced to 96% of normal."
+                 if stressed else
+                 f"DLI on track — projected {dli_proj:.1f} mol/m² by sunset. "
+                 f"{crop} target {dli_thresh:.0f} mol/m²/day will be met.")
 
     # Status card
     cls = "card-red" if stressed else "card-green"
@@ -483,7 +489,7 @@ def page_dli():
     crops_ref = {"Lettuce":14,"Tomato":25,"Wheat":22}
     cols = st.columns(len(crops_ref), gap="small")
     for i,(c,t) in enumerate(crops_ref.items()):
-        is_cur = c.lower() == d.get("crop","lettuce").lower()
+        is_cur = c.lower() == crop.lower()
         b = "2px solid #22c55e" if is_cur else "1px solid rgba(255,255,255,0.08)"
         bg = "rgba(34,197,94,0.07)" if is_cur else "rgba(255,255,255,0.02)"
         with cols[i]: st.markdown(f'<div style="border:{b};background:{bg};border-radius:10px;padding:10px;text-align:center"><div class="lbl">{c}</div><div style="font-weight:700;font-size:16px">{t}</div><div class="cap">mol/m²/day</div></div>', unsafe_allow_html=True)
