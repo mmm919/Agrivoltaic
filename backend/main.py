@@ -150,6 +150,56 @@ BEIRUT_LAT = 33.8938
 BEIRUT_LON = 35.5018
 OWM_API_KEY = "783c93efcb81b26150fb9368a37ce1cb"
 
+DEMO_CSV_PATH = STORAGE_DIR / "demo_window.json"
+_demo_cursor  = 0   # global cursor through the demo rows
+
+def _get_demo_window() -> "pd.DataFrame":
+    """Return a 24-row window from the pre-loaded demo dataset, advancing by 1 row each call."""
+    global _demo_cursor
+    import json as _json
+    with open(DEMO_CSV_PATH) as f:
+        records = _json.load(f)
+    n = len(records)
+    idxs = [(_demo_cursor + i) % n for i in range(24)]
+    rows = [records[i] for i in idxs]
+    _demo_cursor = (_demo_cursor + 1) % n
+
+    df = pd.DataFrame(rows)
+    # Map CSV column names to the names the model expects
+    col_map = {
+        "GHI (W.m-2)":              "GHI (W.m-2)",
+        "DHI_SPN1 (W.m-2)":         "DHI_SPN1 (W.m-2)",
+        "PAR (umol.s-1.m-2)":       "PAR (umol.s-1.m-2)",
+        "Albedometer (W.m-2)":      "Albedometer (W.m-2)",
+        "airtemp_underpanel":        "airtemp_underpanel",
+        "sin_hour":                  "sin_hour",
+        "cos_hour":                  "cos_hour",
+        "GHI (W.m-2)_lag1":         "GHI (W.m-2)_lag1",
+        "GHI (W.m-2)_lag2":         "GHI (W.m-2)_lag2",
+        "GHI (W.m-2)_roll6":        "GHI (W.m-2)_roll6",
+        "DHI_SPN1 (W.m-2)_lag1":    "DHI_SPN1 (W.m-2)_lag1",
+        "PAR (umol.s-1.m-2)_lag1":  "PAR (umol.s-1.m-2)_lag1",
+        "PAR (umol.s-1.m-2)_roll6": "PAR (umol.s-1.m-2)_roll6",
+    }
+    df = df.rename(columns=col_map)
+    # Keep only the needed columns, fill any missing with 0
+    needed = list(col_map.values())
+    for c in needed:
+        if c not in df.columns:
+            df[c] = 0.0
+    log.info("[DEMO] Using demo window cursor=%d, GHI=%.0f PAR=%.0f",
+             _demo_cursor, df["GHI (W.m-2)"].iloc[-1], df["PAR (umol.s-1.m-2)"].iloc[-1])
+    return df[needed].reset_index(drop=True)
+
+def _is_demo_mode() -> bool:
+    """Check if demo mode is enabled in settings."""
+    try:
+        with open(SETTINGS_PATH) as f:
+            s = json.load(f)
+        return bool(s.get("demo_mode", False))
+    except:
+        return False
+
 def _fetch_owm_data() -> dict:
     """Fetch current weather from OpenWeatherMap for Beirut."""
     url = (f"https://api.openweathermap.org/data/2.5/weather"
@@ -170,7 +220,9 @@ def _cloud_to_ghi(cloud_pct: float, hour: float) -> float:
     return clear_sky * clear_factor
 
 def _get_sensor_window() -> "pd.DataFrame":
-    """Build sensor window from real OpenWeatherMap data for Beirut."""
+    """Build sensor window — uses demo CSV if demo mode is on, else live OWM data."""
+    if _is_demo_mode() and DEMO_CSV_PATH.exists():
+        return _get_demo_window()
     now = datetime.utcnow()
     beirut_hour = (now.hour + 3) % 24  # UTC+3
 
@@ -533,6 +585,22 @@ def set_crop(name: str):
         raise HTTPException(400, f"Options: {list(_CROP_THRESHOLDS.keys())}")
     _dli.set_crop(name)
     return {"crop": name, "threshold": f"{_CROP_THRESHOLDS[name]} mol/m²/day"}
+
+@app.post("/demo/toggle")
+def toggle_demo():
+    """Toggle demo mode on/off — switches sensor window between CSV and live OWM."""
+    s = load_json(SETTINGS_PATH, {})
+    current = bool(s.get("demo_mode", False))
+    s["demo_mode"] = not current
+    save_json(SETTINGS_PATH, s)
+    mode = "ON" if s["demo_mode"] else "OFF"
+    log.info("[DEMO] Demo mode turned %s", mode)
+    return {"demo_mode": s["demo_mode"], "message": f"Demo mode {mode}"}
+
+@app.get("/demo/status")
+def demo_status():
+    """Check if demo mode is currently active."""
+    return {"demo_mode": _is_demo_mode()}
 
 @app.get("/history")
 def get_history():
