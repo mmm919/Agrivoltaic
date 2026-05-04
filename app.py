@@ -675,7 +675,7 @@ def page_history():
     header("📈 History", "Your personal inference history (last 24 hours)")
     token = get_token()
     try:
-        hist = api_get("/user/history", timeout=10, token=token)
+        hist = api_get("/history", timeout=10)
     except Exception as e:
         # fallback to global history
         try:
